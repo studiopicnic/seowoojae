@@ -59,7 +59,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="relative flex flex-col min-h-screen bg-white">
+    <div className="h-dvh flex flex-col bg-white overflow-hidden relative">
       
       {/* 로그아웃 버튼 */}
       <button
