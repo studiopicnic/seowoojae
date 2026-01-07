@@ -8,8 +8,6 @@
 html, body {
   /* [수정] dvh를 적용하여 사파리 툴바 대응 및 스크롤 차단 */
   height: 100dvh;
-  overflow: hidden; 
-  overscroll-behavior: none;
   background-color: #f4f4f5; /* 기본 배경색 */
   margin: 0;
   padding: 0;
