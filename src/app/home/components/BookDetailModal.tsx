@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react"; // useEffect 추가
 import { motion } from "framer-motion";
 import { X, Plus } from "lucide-react";
 import { Book } from "@/types/book";
@@ -12,11 +13,17 @@ interface BookDetailModalProps {
 }
 
 export default function BookDetailModal({ book, onClose, onAdd, isAdded }: BookDetailModalProps) {
+  
+  // [수정 포인트] 상세 모달 열림 -> Body 스크롤 잠금
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, []);
+
   return (
-    // [수정 포인트 1] 전체 화면을 감싸는 컨테이너 (중앙 정렬용)
     <div className="fixed inset-0 z-[60] flex justify-center">
-      
-      {/* [수정 포인트 2] 데스크톱용 뒷배경 (클릭 시 닫힘 처리 가능) */}
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -25,7 +32,6 @@ export default function BookDetailModal({ book, onClose, onAdd, isAdded }: BookD
         onClick={onClose}
       />
 
-      {/* [수정 포인트 3] 실제 모달 내용 (max-w-[430px] 적용) */}
       <motion.div
         initial={{ y: "100%" }}
         animate={{ y: 0 }}

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import { Search, X, ChevronLeft, Plus, Check } from "lucide-react";
-import { createClient } from "@/utils/supabase/client"; // Supabase 클라이언트 추가
+import { createClient } from "@/utils/supabase/client";
 import { Book } from "@/types/book";
 import BookDetailModal from "./BookDetailModal";
 
@@ -36,7 +36,14 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   const dragControls = useDragControls();
 
-  // [DB] 최근 검색어 불러오기
+  // [수정 포인트] 모달이 열려있는 동안 Body 스크롤 잠금 (키보드 밀림 방지 효과)
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, []);
+
   const fetchRecentSearches = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -44,37 +51,30 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
     const { data } = await supabase
       .from("recent_searches")
       .select("term")
-      .order("created_at", { ascending: false }) // 최신순
-      .limit(10); // 10개만
+      .order("created_at", { ascending: false })
+      .limit(10);
 
     if (data) {
       setRecentSearches(data.map((item) => item.term));
     }
   }, [supabase]);
 
-  // 초기 실행 시 불러오기
   useEffect(() => {
     fetchRecentSearches();
   }, [fetchRecentSearches]);
 
-  // [DB] 검색어 저장하기 (Upsert)
   const saveSearchTerm = async (term: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // 이미 있는 단어면 created_at만 갱신됨 (SQL unique 설정 덕분)
     await supabase.from("recent_searches").upsert(
       { user_id: user.id, term: term, created_at: new Date().toISOString() },
       { onConflict: "user_id, term" }
     );
-    
-    // 저장 후 목록 다시 불러오기 (순서 갱신 등)
     fetchRecentSearches();
   };
 
-  // [DB] 검색어 삭제하기
   const removeSearchTerm = async (term: string) => {
-    // UI에서 먼저 삭제 (반응속도 향상)
     setRecentSearches((prev) => prev.filter((t) => t !== term));
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -86,9 +86,8 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
     }
   };
 
-  // [DB] 검색어 전체 삭제
   const clearAllSearches = async () => {
-    setRecentSearches([]); // UI 먼저
+    setRecentSearches([]);
     
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -99,7 +98,6 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
     }
   };
 
-  // 검색 실행
   const handleSearch = async (query: string) => {
     if (!query.trim()) return;
     setIsSearching(true);
@@ -110,8 +108,6 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
       const response = await fetch(`/api/books?query=${encodeURIComponent(query)}`);
       const data = await response.json();
       setSearchResults(data.documents || []);
-      
-      // 검색 성공 시 DB에 저장
       saveSearchTerm(query);
     } catch (error) {
       console.error("검색 실패", error);
@@ -199,7 +195,6 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
                   )}
                 </form>
 
-                {/* 최근 검색어 (DB 연동됨) */}
                 {!isSearching && !hasSearched && !searchResults.length && recentSearches.length > 0 && (
                   <div className="flex-1">
                     <div className="flex justify-between mb-4">

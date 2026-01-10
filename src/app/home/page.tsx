@@ -26,27 +26,22 @@ export default function HomePage() {
   
   const [activeTab, setActiveTab] = useState<BookStatus>("reading");
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // 책 데이터 상태
   const [myBooks, setMyBooks] = useState<Record<BookStatus, Book[]>>({
     reading: [],
     wish: [],
     finished: [],
   });
-
-  const [isLoading, setIsLoading] = useState(true); // 로딩 상태 추가
+  const [isLoading, setIsLoading] = useState(true);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
 
-  // 중복 체크용 키 목록 (메모리 최적화를 위해 렌더링 시 계산)
   const addedBookKeys = new Set([
     ...myBooks.reading.map((b) => b.title + b.authors.join("")),
     ...myBooks.wish.map((b) => b.title + b.authors.join("")),
     ...myBooks.finished.map((b) => b.title + b.authors.join("")),
   ]);
 
-  // [DB 통신 1] 내 책 가져오기
   const fetchBooks = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -55,11 +50,10 @@ export default function HomePage() {
       const { data, error } = await supabase
         .from("books")
         .select("*")
-        .order("created_at", { ascending: false }); // 최신순 정렬
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      // 가져온 데이터를 상태별로 분류
       const newBooks: Record<BookStatus, Book[]> = {
         reading: [],
         wish: [],
@@ -88,7 +82,6 @@ export default function HomePage() {
     }
   }, [supabase]);
 
-  // 초기 실행 시 책 데이터 로드
   useEffect(() => {
     fetchBooks();
   }, [fetchBooks]);
@@ -98,7 +91,6 @@ export default function HomePage() {
     router.replace("/login");
   };
 
-  // [DB 통신 2] 책 추가하기
   const handleAddBook = async (book: Book, status: BookStatus) => {
     const bookKey = book.title + book.authors.join("");
 
@@ -114,7 +106,6 @@ export default function HomePage() {
         return;
       }
 
-      // 1. DB에 저장
       const { error } = await supabase.from("books").insert({
         user_id: user.id,
         title: book.title,
@@ -129,7 +120,6 @@ export default function HomePage() {
 
       if (error) throw error;
 
-      // 2. 화면 상태 업데이트 (DB 저장 성공 시에만)
       setMyBooks((prev) => ({
         ...prev,
         [status]: [book, ...prev[status]], 
@@ -148,6 +138,7 @@ export default function HomePage() {
   const currentBooks = myBooks[activeTab];
 
   return (
+    // [수정 1] 화면 전체 스크롤 막음 (overflow-hidden) -> 헤더 고정의 핵심
     <div className="h-dvh flex flex-col bg-white overflow-hidden relative">
       <Toast isVisible={showToast} message={toastMessage} />
       <AlertModal isOpen={showAlert} onClose={() => setShowAlert(false)} message="이미 등록된 책입니다" />
@@ -156,8 +147,8 @@ export default function HomePage() {
         <LogOut className="w-3 h-3" /> 로그아웃
       </button>
 
-      {/* 헤더 */}
-      <header className="sticky top-0 z-10 flex flex-col items-center w-full pt-8 pb-4 bg-white/95 backdrop-blur-sm">
+      {/* 헤더: sticky가 아니라 그냥 block 요소로 둠 (부모가 스크롤 안 되니까 자동 고정됨) */}
+      <header className="flex flex-col items-center w-full pt-8 pb-4 bg-white z-10 shrink-0">
         <div className="flex gap-6 mb-2">
           {(["reading", "wish", "finished"] as BookStatus[]).map((tab) => (
             <button
@@ -176,23 +167,20 @@ export default function HomePage() {
         </span>
       </header>
 
-      {/* 메인 컨텐츠 */}
+      {/* [수정 2] 메인 컨텐츠만 스크롤 가능하게 변경 (overflow-y-auto) */}
       <main 
         className={`flex-1 w-full px-6 pb-24 overflow-y-auto scrollbar-hide ${
           isLoading || currentBooks.length === 0 ? "flex flex-col items-center justify-center" : "pt-4"
         }`}
       >
         {isLoading ? (
-          // 로딩 상태
           <div className="text-gray-400 text-sm">내 서재를 불러오는 중...</div>
         ) : currentBooks.length === 0 ? (
-          // 빈 상태
           <div className="text-center">
             <h2 className="text-lg font-medium text-gray-900 mb-2">첫 책을 기록해볼까요?</h2>
             <p className="text-sm text-gray-500 leading-relaxed">작은 기록이 쌓여 나만의 독서 여정이 됩니다.</p>
           </div>
         ) : (
-          // 리스트 상태
           <div className="grid grid-cols-2 gap-x-4 gap-y-8 pb-10">
             {currentBooks.map((book, index) => (
               <div key={index} className="flex flex-col">
@@ -224,7 +212,6 @@ export default function HomePage() {
         )}
       </main>
 
-      {/* 플로팅 버튼 */}
       <div className="fixed bottom-[88px] left-0 w-full flex justify-center pointer-events-none z-20">
         <button 
           onClick={() => setIsModalOpen(true)}
