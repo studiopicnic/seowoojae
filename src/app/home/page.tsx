@@ -1,5 +1,6 @@
 "use client";
 
+// ... (imports 동일)
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
@@ -12,8 +13,8 @@ import AlertModal from "@/components/common/AlertModal";
 import SearchModal from "./components/SearchModal";
 import { Book } from "@/types/book";
 
+// ... (타입 및 상수 동일)
 type BookStatus = "reading" | "wish" | "finished";
-
 const STATUS_LABELS: Record<BookStatus, string> = {
   reading: "읽고 있는 책",
   wish: "읽고 싶은 책",
@@ -21,6 +22,7 @@ const STATUS_LABELS: Record<BookStatus, string> = {
 };
 
 export default function HomePage() {
+  // ... (로직 내부 코드는 100% 동일, 변경 없음)
   const router = useRouter();
   const supabase = createClient();
   
@@ -138,12 +140,14 @@ export default function HomePage() {
   const currentBooks = myBooks[activeTab];
 
   return (
-    // fixed inset-0 유지 (헤더 고정됨)
-    <div className="fixed inset-0 flex flex-col bg-white overflow-hidden">
+    // [수정 포인트] max-w-[430px] mx-auto 추가 -> 데스크톱에서 모바일 사이즈로 중앙 정렬
+    // shadow-2xl -> 데스크톱에서 떠 있는 느낌 추가 (선택사항)
+    <div className="fixed inset-0 flex flex-col bg-white overflow-hidden max-w-[430px] mx-auto shadow-2xl">
       <Toast isVisible={showToast} message={toastMessage} />
       <AlertModal isOpen={showAlert} onClose={() => setShowAlert(false)} message="이미 등록된 책입니다" />
 
-      <button onClick={handleLogout} className="fixed top-4 right-4 z-40 px-3 py-1.5 bg-black/50 text-white text-xs rounded-full backdrop-blur-sm hover:bg-black transition-colors flex items-center gap-1 cursor-pointer">
+      {/* 로그아웃 버튼: 모바일 사이즈 안에 갇히게 absolute로 변경 */}
+      <button onClick={handleLogout} className="absolute top-4 right-4 z-40 px-3 py-1.5 bg-black/50 text-white text-xs rounded-full backdrop-blur-sm hover:bg-black transition-colors flex items-center gap-1 cursor-pointer">
         <LogOut className="w-3 h-3" /> 로그아웃
       </button>
 
@@ -166,7 +170,6 @@ export default function HomePage() {
         </span>
       </header>
 
-      {/* [수정 포인트] WebkitOverflowScrolling: 'touch' 추가하여 스크롤 뻑뻑함 해결 */}
       <main 
         className={`flex-1 w-full px-6 pb-24 overflow-y-auto overscroll-y-auto scrollbar-hide ${
           isLoading || currentBooks.length === 0 ? "flex flex-col items-center justify-center" : "pt-4"
@@ -212,7 +215,8 @@ export default function HomePage() {
         )}
       </main>
 
-      <div className="fixed bottom-[88px] left-0 w-full flex justify-center pointer-events-none z-20">
+      {/* 플로팅 버튼: absolute로 변경하여 컨테이너 내부에 고정 */}
+      <div className="absolute bottom-[88px] left-0 w-full flex justify-center pointer-events-none z-20">
         <button 
           onClick={() => setIsModalOpen(true)}
           className="pointer-events-auto w-14 h-10 bg-black text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform cursor-pointer hover:bg-gray-800"
