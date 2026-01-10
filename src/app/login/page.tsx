@@ -3,14 +3,14 @@
 import { createClient } from "@/utils/supabase/client";
 
 export default function LoginPage() {
-  const handleSocialLogin = async (provider: "google" | "apple") => {
+  const handleSocialLogin = async (provider: "google" | "kakao") => {
     const supabase = createClient();
     
+    // [수정] location.origin을 사용하여 현재 환경(로컬/배포)에 맞게 돌아오게 설정
     await supabase.auth.signInWithOAuth({
-      provider: provider,
+      provider,
       options: {
-        // 가장 안정적인 기본 리다이렉트 설정으로 복구합니다.
-        redirectTo: `${window.location.origin}/auth/callback?next=/home`,
+        redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
   };

@@ -1,201 +1,248 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { Home, User, PenSquare, Plus, LogOut, ChevronLeft, Search, X } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion"; // 애니메이션 라이브러리 추가
+import { LogOut, Plus } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
 
-type ModalStep = "selection" | "search";
+import BottomNav from "@/components/common/BottomNav";
+import Toast from "@/components/common/Toast";
+import AlertModal from "@/components/common/AlertModal";
+import SearchModal from "./components/SearchModal";
+import { Book } from "@/types/book";
+
+type BookStatus = "reading" | "wish" | "finished";
+
+const STATUS_LABELS: Record<BookStatus, string> = {
+  reading: "읽고 있는 책",
+  wish: "읽고 싶은 책",
+  finished: "읽은 책",
+};
 
 export default function HomePage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("reading");
+  const supabase = createClient();
   
-  // 모달 관련 상태
+  const [activeTab, setActiveTab] = useState<BookStatus>("reading");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalStep, setModalStep] = useState<ModalStep>("selection");
-  const [selectedStatus, setSelectedStatus] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+
+  // 책 데이터 상태
+  const [myBooks, setMyBooks] = useState<Record<BookStatus, Book[]>>({
+    reading: [],
+    wish: [],
+    finished: [],
+  });
+
+  const [isLoading, setIsLoading] = useState(true); // 로딩 상태 추가
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [showAlert, setShowAlert] = useState(false);
+
+  // 중복 체크용 키 목록 (메모리 최적화를 위해 렌더링 시 계산)
+  const addedBookKeys = new Set([
+    ...myBooks.reading.map((b) => b.title + b.authors.join("")),
+    ...myBooks.wish.map((b) => b.title + b.authors.join("")),
+    ...myBooks.finished.map((b) => b.title + b.authors.join("")),
+  ]);
+
+  // [DB 통신 1] 내 책 가져오기
+  const fetchBooks = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("books")
+        .select("*")
+        .order("created_at", { ascending: false }); // 최신순 정렬
+
+      if (error) throw error;
+
+      // 가져온 데이터를 상태별로 분류
+      const newBooks: Record<BookStatus, Book[]> = {
+        reading: [],
+        wish: [],
+        finished: [],
+      };
+
+      data?.forEach((item: any) => {
+        if (item.status in newBooks) {
+          newBooks[item.status as BookStatus].push({
+            title: item.title,
+            authors: item.authors,
+            translators: item.translators,
+            thumbnail: item.thumbnail,
+            publisher: item.publisher,
+            contents: item.contents,
+            isbn: item.isbn,
+          });
+        }
+      });
+
+      setMyBooks(newBooks);
+    } catch (error) {
+      console.error("책 불러오기 실패:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [supabase]);
+
+  // 초기 실행 시 책 데이터 로드
+  useEffect(() => {
+    fetchBooks();
+  }, [fetchBooks]);
 
   const handleLogout = async () => {
-    const supabase = createClient();
     await supabase.auth.signOut();
     router.replace("/login");
   };
 
-  const openModal = () => {
-    setModalStep("selection");
-    setIsModalOpen(true);
+  // [DB 통신 2] 책 추가하기
+  const handleAddBook = async (book: Book, status: BookStatus) => {
+    const bookKey = book.title + book.authors.join("");
+
+    if (addedBookKeys.has(bookKey)) {
+      setShowAlert(true);
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+
+      // 1. DB에 저장
+      const { error } = await supabase.from("books").insert({
+        user_id: user.id,
+        title: book.title,
+        authors: book.authors,
+        translators: book.translators,
+        thumbnail: book.thumbnail,
+        publisher: book.publisher,
+        contents: book.contents,
+        isbn: book.isbn,
+        status: status,
+      });
+
+      if (error) throw error;
+
+      // 2. 화면 상태 업데이트 (DB 저장 성공 시에만)
+      setMyBooks((prev) => ({
+        ...prev,
+        [status]: [book, ...prev[status]], 
+      }));
+      
+      setToastMessage(`${STATUS_LABELS[status]}에 추가되었습니다`);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2000);
+
+    } catch (error) {
+      console.error("책 저장 실패:", error);
+      alert("저장 중 오류가 발생했습니다.");
+    }
   };
 
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setSearchQuery("");
-  };
-
-  const handleSelectStatus = (status: string) => {
-    setSelectedStatus(status);
-    setSearchQuery("");
-    setModalStep("search");
-  };
-
-  const handleBackStep = () => {
-    setModalStep("selection");
-  };
-
-  const handleClearQuery = () => {
-    setSearchQuery("");
-  };
+  const currentBooks = myBooks[activeTab];
 
   return (
     <div className="h-dvh flex flex-col bg-white overflow-hidden relative">
-      
-      {/* 로그아웃 버튼 */}
-      <button
-        onClick={handleLogout}
-        className="fixed top-4 right-4 z-40 px-3 py-1.5 bg-black/50 text-white text-xs rounded-full backdrop-blur-sm hover:bg-black transition-colors flex items-center gap-1 cursor-pointer"
-      >
-        <LogOut className="w-3 h-3" />
-        로그아웃
+      <Toast isVisible={showToast} message={toastMessage} />
+      <AlertModal isOpen={showAlert} onClose={() => setShowAlert(false)} message="이미 등록된 책입니다" />
+
+      <button onClick={handleLogout} className="fixed top-4 right-4 z-40 px-3 py-1.5 bg-black/50 text-white text-xs rounded-full backdrop-blur-sm hover:bg-black transition-colors flex items-center gap-1 cursor-pointer">
+        <LogOut className="w-3 h-3" /> 로그아웃
       </button>
 
-      {/* 상단 탭 */}
-      <header className="sticky top-0 z-10 flex items-center justify-center w-full pt-8 pb-4 bg-white gap-6">
-        {["reading", "wish", "finished"].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`text-lg font-bold transition-colors cursor-pointer hover:opacity-70 ${
-              activeTab === tab ? "text-gray-900" : "text-gray-300"
-            }`}
-          >
-            {tab === "reading" ? "읽고 있는 책" : tab === "wish" ? "읽고 싶은 책" : "읽은 책"}
-          </button>
-        ))}
+      {/* 헤더 */}
+      <header className="sticky top-0 z-10 flex flex-col items-center w-full pt-8 pb-4 bg-white/95 backdrop-blur-sm">
+        <div className="flex gap-6 mb-2">
+          {(["reading", "wish", "finished"] as BookStatus[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`text-lg font-bold transition-colors cursor-pointer hover:opacity-70 ${
+                activeTab === tab ? "text-gray-900" : "text-gray-300"
+              }`}
+            >
+              {STATUS_LABELS[tab]}
+            </button>
+          ))}
+        </div>
+        <span className="text-[13px] text-gray-400 font-medium">
+          총 {currentBooks.length}권
+        </span>
       </header>
 
       {/* 메인 컨텐츠 */}
-      <main className="flex-1 flex flex-col items-center justify-center px-6 pb-20 text-center">
-        <h2 className="text-lg font-medium text-gray-900 mb-2">첫 책을 기록해볼까요?</h2>
-        <p className="text-sm text-gray-500 leading-relaxed">작은 기록이 쌓여 나만의 독서 여정이 됩니다.</p>
-      </main>
-
-      {/* 하단 네비게이션 */}
-      <div className="fixed bottom-0 w-full max-w-[430px] z-20">
-        <div className="absolute bottom-[68px] left-0 w-full flex justify-center pointer-events-none">
-          <button 
-            onClick={openModal}
-            className="pointer-events-auto w-14 h-10 bg-black text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform cursor-pointer hover:bg-gray-800"
-          >
-            <Plus className="w-6 h-6" />
-          </button>
-        </div>
-        <nav className="h-[60px] bg-white border-t border-gray-100 flex items-center justify-between px-10 pb-2">
-          <button className="p-2 text-gray-900 cursor-pointer"><Home className="w-6 h-6 fill-current" /></button>
-          <button className="p-2 text-gray-300 hover:text-gray-500 transition-colors cursor-pointer"><PenSquare className="w-6 h-6" /></button>
-          <button className="p-2 text-gray-300 hover:text-gray-500 transition-colors cursor-pointer"><User className="w-6 h-6" /></button>
-        </nav>
-      </div>
-
-      {/* === [멀티 스텝 모달 - Framer Motion 적용] === */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex justify-center items-end">
-            {/* 배경 레이어 */}
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={closeModal}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            />
-
-            {/* 모달 본체: 드래그 기능 추가 */}
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              drag="y"
-              dragConstraints={{ top: 0 }}
-              dragElastic={0.2}
-              onDragEnd={(_, info) => {
-                // 아래로 100px 이상 내리거나 속도가 빠르면 닫기
-                if (info.offset.y > 100 || info.velocity.y > 500) {
-                  closeModal();
-                }
-              }}
-              className="relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col"
-              style={{ maxHeight: "92dvh" }}
-            >
-              {/* 드래그 핸들 영역 (상단 손잡이 부분) */}
-              <div className="pt-4 px-6 pb-2 shrink-0 cursor-grab active:cursor-grabbing">
-                <div className="w-10 h-1.5 bg-gray-200 rounded-full mx-auto mb-6"></div>
-                <div className="relative flex items-center justify-center mb-4">
-                  {modalStep === "search" && (
-                    <button 
-                      onClick={handleBackStep}
-                      className="absolute left-0 p-1 -ml-1 text-gray-500 hover:text-gray-900 transition-colors"
-                    >
-                      <ChevronLeft className="w-6 h-6" />
-                    </button>
+      <main 
+        className={`flex-1 w-full px-6 pb-24 overflow-y-auto scrollbar-hide ${
+          isLoading || currentBooks.length === 0 ? "flex flex-col items-center justify-center" : "pt-4"
+        }`}
+      >
+        {isLoading ? (
+          // 로딩 상태
+          <div className="text-gray-400 text-sm">내 서재를 불러오는 중...</div>
+        ) : currentBooks.length === 0 ? (
+          // 빈 상태
+          <div className="text-center">
+            <h2 className="text-lg font-medium text-gray-900 mb-2">첫 책을 기록해볼까요?</h2>
+            <p className="text-sm text-gray-500 leading-relaxed">작은 기록이 쌓여 나만의 독서 여정이 됩니다.</p>
+          </div>
+        ) : (
+          // 리스트 상태
+          <div className="grid grid-cols-2 gap-x-4 gap-y-8 pb-10">
+            {currentBooks.map((book, index) => (
+              <div key={index} className="flex flex-col">
+                <div className="w-full aspect-[2/3] bg-gray-100 rounded-md mb-3 shadow-sm overflow-hidden border border-gray-100 relative">
+                  {book.thumbnail ? (
+                    <img 
+                      src={book.thumbnail} 
+                      alt={book.title} 
+                      className="w-full h-full object-cover transition-transform hover:scale-105 duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs bg-gray-50">
+                      No Image
+                    </div>
                   )}
-                  <h3 className="text-lg font-bold text-gray-900">추가하기</h3>
+                </div>
+                
+                <div className="space-y-1">
+                  <h3 className="text-[15px] font-bold text-gray-900 leading-snug line-clamp-2">
+                    {book.title}
+                  </h3>
+                  <p className="text-[12px] text-gray-500 line-clamp-1">
+                    {book.authors.join(", ")}
+                  </p>
                 </div>
               </div>
-
-              {/* 내용 영역 */}
-              <div 
-                className={`px-6 pb-12 overflow-y-auto transition-[height] duration-300 ${
-                  modalStep === 'search' ? 'h-[500px]' : 'h-auto'
-                }`}
-              >
-                {modalStep === "selection" && (
-                  <div className="space-y-3">
-                    {["읽고 있는 책", "읽고 싶은 책", "읽은 책"].map((status) => (
-                      <button 
-                        key={status}
-                        onClick={() => handleSelectStatus(status)} 
-                        className="w-full py-4 text-[15px] font-medium text-gray-900 border border-gray-200 rounded-xl active:bg-gray-50 transition-colors"
-                      >
-                        {status}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {modalStep === "search" && (
-                  <div className="flex flex-col h-full">
-                    <div className="relative mb-6">
-                      <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
-                        <Search className="w-5 h-5 text-gray-400" />
-                      </div>
-                      <input 
-                        type="text"
-                        placeholder="검색어를 입력하세요"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full py-4 pl-12 pr-12 text-[15px] bg-gray-50 text-gray-900 rounded-xl outline-none focus:ring-2 focus:ring-gray-900/10"
-                        autoFocus
-                      />
-                      {searchQuery.length > 0 && (
-                        <button
-                          onClick={handleClearQuery}
-                          className="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400"
-                        >
-                          <X className="w-5 h-5" />
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
-                      <p>검색 결과가 여기에 표시됩니다</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </motion.div>
+            ))}
           </div>
+        )}
+      </main>
+
+      {/* 플로팅 버튼 */}
+      <div className="fixed bottom-[88px] left-0 w-full flex justify-center pointer-events-none z-20">
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="pointer-events-auto w-14 h-10 bg-black text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform cursor-pointer hover:bg-gray-800"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
+      </div>
+
+      <BottomNav />
+
+      <AnimatePresence>
+        {isModalOpen && (
+          <SearchModal 
+            onClose={() => setIsModalOpen(false)}
+            onAddBook={handleAddBook}
+            addedBooks={addedBookKeys} 
+          />
         )}
       </AnimatePresence>
     </div>

@@ -1,12 +1,17 @@
+// src/app/auth/callback/route.ts
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export async function GET(request: Request) {
+  // 1. 현재 접속한 주소(origin)를 가져옵니다. 
+  // 로컬이면 http://localhost:3000, 배포판이면 https://seowoojae... 가 들어옵니다.
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  // 로그인 성공 후 이동할 페이지 (없으면 홈으로)
-  const next = searchParams.get("next") ?? "/";
+  
+  // [수정 포인트] 로그인 직후 이동할 페이지 설정
+  // next 값이 있으면 거기로 가고, 없으면 무조건 '/home'으로 보냅니다.
+  const next = searchParams.get("next") ?? "/home";
 
   if (code) {
     const cookieStore = await cookies();
@@ -32,12 +37,12 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      // 로그인 성공 시: 원래 가려던 페이지(/home)로 이동
+      // 로그인 성공! 
+      // 로컬에서 로그인했으면 localhost/home으로, 배포에서 했으면 vercel/home으로 자동 이동합니다.
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
 
-  // [수정된 부분] 
-  // 취소하거나 에러가 났을 때: 이상한 에러 페이지 말고, 다시 '로그인 페이지'로 보냅니다.
+  // 실패 시 로그인 페이지로 복귀
   return NextResponse.redirect(`${origin}/login`);
 }
