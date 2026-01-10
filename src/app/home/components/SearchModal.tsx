@@ -147,9 +147,9 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
           drag="y" dragControls={dragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2}
           onDragEnd={(_, info) => { if (info.offset.y > 100 || info.velocity.y > 500) onClose(); }}
           className={`relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col z-10 transition-[height] duration-300 ${
-            modalStep === 'search' ? 'h-[92dvh]' : 'h-auto'
+            modalStep === 'search' ? 'h-[70dvh]' : 'h-auto'
           }`}
-          style={{ maxHeight: "92dvh" }}
+          style={{ maxHeight: "70dvh" }}
         >
           {/* 드래그 핸들 */}
           <div 
