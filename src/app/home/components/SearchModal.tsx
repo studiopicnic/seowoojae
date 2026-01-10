@@ -36,7 +36,7 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   const dragControls = useDragControls();
 
-  // [수정 포인트] 모달이 열려있는 동안 Body 스크롤 잠금 (키보드 밀림 방지 효과)
+  // Body 스크롤 잠금 (기존 유지)
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -139,9 +139,11 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
   return (
     <>
       <div className="fixed inset-0 z-50 flex justify-center items-end">
+        {/* [수정 포인트] 오버레이 터치 이벤트 차단 -> 키보드 올라왔을 때 배경 스크롤로 인한 밀림 방지 */}
         <motion.div 
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          onClick={onClose} 
+          onClick={onClose}
+          onTouchMove={(e) => e.preventDefault()} // 여기가 핵심! 터치 무시
           className="fixed inset-0 bg-black/60 backdrop-blur-sm" 
         />
 
