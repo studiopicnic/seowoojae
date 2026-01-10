@@ -33,14 +33,42 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
   
   const [selectedStatusLabel, setSelectedStatusLabel] = useState("");
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  
+  // [전략 B 핵심] 실제 보이는 화면 높이를 저장할 상태
+  const [viewportHeight, setViewportHeight] = useState("100%");
 
   const dragControls = useDragControls();
 
-  // Body 스크롤 잠금 (기존 유지)
+  // 1. Body 스크롤 잠금 (기존 유지)
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "auto";
+    };
+  }, []);
+
+// 2. [전략 B 핵심] Visual Viewport(실제 보이는 화면) 높이 감지
+  useEffect(() => {
+    // 1. visualViewport가 없는 브라우저(구형)면 아예 실행 안 함
+    if (!window.visualViewport) return;
+
+    const handleResize = () => {
+      // 값이 있을 때만 높이 업데이트
+      if (window.visualViewport) {
+        setViewportHeight(`${window.visualViewport.height}px`);
+      }
+    };
+
+    window.visualViewport.addEventListener("resize", handleResize);
+    window.visualViewport.addEventListener("scroll", handleResize);
+    
+    // 초기값 설정
+    handleResize();
+
+    return () => {
+      // [수정] 물음표(?.)를 붙여서 안전하게 삭제
+      window.visualViewport?.removeEventListener("resize", handleResize);
+      window.visualViewport?.removeEventListener("scroll", handleResize);
     };
   }, []);
 
@@ -138,16 +166,20 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   return (
     <>
-      {/* [수정 포인트 1] 모달을 감싸는 전체 컨테이너에 touch-action: none 적용 */}
-      {/* 이렇게 하면 키보드가 올라와도 브라우저가 화면 전체를 스크롤하지 않습니다. */}
+      {/* [수정 포인트 1] 컨테이너 높이를 viewportHeight로 동적 할당 */}
       <div 
-        className="fixed inset-0 z-50 flex justify-center items-end"
-        style={{ touchAction: 'none' }}
+        className="fixed left-0 w-full z-50 flex justify-center items-end"
+        style={{ 
+          height: viewportHeight, // 키보드가 올라오면 이 높이가 줄어듦 -> 모달도 같이 올라옴
+          top: 0, // 상단 고정
+          touchAction: 'none' // 전체 스크롤 방지
+        }}
       >
         <motion.div 
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm" 
+          onTouchMove={(e) => e.preventDefault()} 
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
         />
 
         <motion.div
@@ -156,7 +188,7 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
           drag="y" dragControls={dragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2}
           onDragEnd={(_, info) => { if (info.offset.y > 100 || info.velocity.y > 500) onClose(); }}
           className="relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col z-10"
-          style={{ maxHeight: "92dvh" }}
+          style={{ maxHeight: "100%" }} // 92dvh -> 100% (부모가 이미 줄어들었으므로 꽉 채움)
         >
           <div className="pt-4 px-6 pb-2 shrink-0 cursor-grab active:cursor-grabbing touch-none" onPointerDown={(e) => dragControls.start(e)}>
             <div className="w-10 h-1.5 bg-gray-200 rounded-full mx-auto mb-6"></div>
@@ -170,10 +202,9 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
             </div>
           </div>
 
-          {/* [수정 포인트 2] 내부 스크롤 영역에만 touch-action: pan-y 허용 */}
-          {/* overscroll-behavior: contain을 추가하여 스크롤이 끝에 닿았을 때 부모(화면)까지 움직이는 현상 방지 */}
+          {/* [수정 포인트 2] 내부 스크롤 영역 설정 (overscroll-behavior 유지) */}
           <div 
-            className={`px-6 pb-8 overflow-y-auto transition-[height] duration-300 ${modalStep === 'search' ? 'h-[500px]' : 'h-auto'}`}
+            className={`px-6 pb-8 overflow-y-auto transition-[height] duration-300 ${modalStep === 'search' ? 'flex-1' : 'h-auto'}`}
             style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}
           >
             {modalStep === "selection" && (
