@@ -3,14 +3,17 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "서우재",
-  description: "서우재 모바일 서비스",
+  description: "나만의 작은 서재",
 };
 
+// [Step 1 핵심] viewport 설정 추가!
+// interactiveWidget: 'resizes-content' -> "키보드 올라오면 화면(Viewport) 크기 자체를 줄여라"
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  interactiveWidget: "resizes-content", 
 };
 
 export default function RootLayout({
