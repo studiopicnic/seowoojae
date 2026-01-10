@@ -37,12 +37,14 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   const dragControls = useDragControls();
 
-  // 라이브러리용 Ref
+  // 스크롤이 가능한 영역(리스트)을 지정하기 위한 Ref
   const modalRef = useRef<HTMLDivElement>(null);
 
+  // [라이브러리 적용] Body Scroll 잠금
   useEffect(() => {
     const targetElement = modalRef.current;
     if (targetElement) {
+      // 이 리스트 영역(targetElement)만 스크롤 허용하고 나머지는 다 잠금
       disableBodyScroll(targetElement, {
         reserveScrollBarGap: true,
       });
@@ -146,15 +148,19 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   return (
     <>
-      {/* 부모: 터치 금지 (키보드 밀림 방지) */}
-      <div 
-        className="fixed inset-0 z-50 flex justify-center items-end"
-        style={{ height: '100dvh', touchAction: 'none' }}
-      >
+      {/* [수정 1] 부모 컨테이너의 touchAction: 'none' 제거 
+        -> 이걸 제거해야 자식(리스트)이 터치를 받을 수 있음
+      */}
+      <div className="fixed inset-0 z-50 flex justify-center items-end" style={{ height: '100dvh' }}>
+        
+        {/* [수정 2] 오버레이(배경)에만 touchAction: 'none' 적용
+            -> 배경을 잘못 터치해서 키보드가 밀리는 것을 여기서 방어 
+        */}
         <motion.div 
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           onClick={onClose}
-          onTouchMove={(e) => e.preventDefault()}
+          style={{ touchAction: 'none' }}
+          onTouchMove={(e) => e.preventDefault()} 
           className="fixed inset-0 bg-black/60 backdrop-blur-sm" 
         />
 
@@ -166,7 +172,14 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
           className="relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col z-10"
           style={{ maxHeight: "92dvh" }}
         >
-          <div className="pt-4 px-6 pb-2 shrink-0 cursor-grab active:cursor-grabbing touch-none" onPointerDown={(e) => dragControls.start(e)}>
+          {/* [수정 3] 헤더(드래그 핸들) 영역에도 touchAction: 'none' 적용
+              -> 여긴 스크롤이 아니라 드래그를 해야 하므로 스크롤 이벤트 차단 
+          */}
+          <div 
+            className="pt-4 px-6 pb-2 shrink-0 cursor-grab active:cursor-grabbing touch-none" 
+            onPointerDown={(e) => dragControls.start(e)}
+            style={{ touchAction: 'none' }}
+          >
             <div className="w-10 h-1.5 bg-gray-200 rounded-full mx-auto mb-6"></div>
             <div className="relative flex items-center justify-center mb-4">
               {modalStep === "search" && (
@@ -178,15 +191,18 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
             </div>
           </div>
 
-          {/* [수정 완료] 자식: 터치 허용 (pan-y) 
-             부모의 touch-action: none을 무시하고 스크롤을 살려줌 */}
+          {/* [수정 4] 리스트 영역 설정 
+              - flex-1: 남은 공간을 꽉 채우도록 변경 (h-[500px] 같은 고정값 대신)
+              - touchAction: 'pan-y': 여기서만 "상하 스크롤 허용"
+              - overscrollBehavior: 'contain': 스크롤 끝에 닿아도 부모에게 전파 안 함 (중요!)
+          */}
           <div 
             ref={modalRef}
-            className={`px-6 pb-8 overflow-y-auto transition-[height] duration-300 ${modalStep === 'search' ? 'h-[500px]' : 'h-auto'}`}
+            className="px-6 pb-8 overflow-y-auto transition-[height] duration-300 flex-1 min-h-0"
             style={{ 
-              touchAction: 'pan-y',       // 핵심: 상하 스크롤 제스처 허용
-              overscrollBehavior: 'contain', 
-              WebkitOverflowScrolling: 'touch' // iOS 부드러운 스크롤 강제 적용
+              touchAction: 'pan-y', 
+              overscrollBehavior: 'contain',
+              WebkitOverflowScrolling: 'touch'
             }}
           >
             {modalStep === "selection" && (
