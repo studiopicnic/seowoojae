@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import { Search, X, ChevronLeft, Plus, Check } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { Book } from "@/types/book";
 import BookDetailModal from "./BookDetailModal";
+// [라이브러리 import]
+import { disableBodyScroll, enableBodyScroll, clearAllBodyScrollLocks } from "body-scroll-lock";
 
 type BookStatus = "reading" | "wish" | "finished";
 
@@ -36,24 +38,23 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   const dragControls = useDragControls();
 
-  // [정석 해결법] Body Freeze 기법 적용
-  // 모달이 열리면 배경을 fixed로 고정해버려서 키보드 밀림과 스크롤 간섭을 물리적으로 차단함
+  // [Step 2 핵심] 스크롤이 가능한 영역을 지정하기 위한 Ref
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // [Step 2 핵심] 라이브러리 적용 (Body Freeze 자동화)
   useEffect(() => {
-    // 1. 현재 스크롤 위치 저장
-    const scrollY = window.scrollY;
-    
-    // 2. 바디를 그 자리에 '얼음' (width: 100%는 레이아웃 깨짐 방지)
-    document.body.style.cssText = `
-      position: fixed; 
-      top: -${scrollY}px;
-      overflow-y: scroll;
-      width: 100%;`;
-    
+    const targetElement = modalRef.current;
+
+    if (targetElement) {
+      // 1. 모달이 열리면: targetElement(리스트)를 제외하고 모든 스크롤 잠금
+      disableBodyScroll(targetElement, {
+        reserveScrollBarGap: true, // PC에서 스크롤바 사라질 때 덜컹거림 방지
+      });
+    }
+
     return () => {
-      // 3. 모달 닫히면 '땡' (원래 위치로 복구)
-      const scrollY = document.body.style.top;
-      document.body.style.cssText = '';
-      window.scrollTo(0, parseInt(scrollY || '0', 10) * -1);
+      // 2. 모달이 닫히면: 모든 잠금 해제
+      clearAllBodyScrollLocks();
     };
   }, []);
 
@@ -152,17 +153,18 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
   return (
     <>
       {/* [수정 포인트]
-        - touchAction: 'none' -> 배경 터치 시 브라우저 스크롤 방지
-        - height: '100dvh' -> 모바일 주소창 크기 변화 대응
+        - touchAction: 'none'은 유지 (배경 터치 시 전체 화면 밀림 방지 보조)
+        - 복잡한 height style 제거하고 라이브러리에 의존
       */}
       <div 
         className="fixed inset-0 z-50 flex justify-center items-end"
-        style={{ height: '100dvh', touchAction: 'none' }}
+        style={{ touchAction: 'none' }}
       >
         <motion.div 
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           onClick={onClose}
-          onTouchMove={(e) => e.preventDefault()} // 배경 터치 무시
+          // 배경 터치 시 이벤트 전파 막기
+          onTouchMove={(e) => e.preventDefault()} 
           className="fixed inset-0 bg-black/60 backdrop-blur-sm" 
         />
 
@@ -172,7 +174,6 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
           drag="y" dragControls={dragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2}
           onDragEnd={(_, info) => { if (info.offset.y > 100 || info.velocity.y > 500) onClose(); }}
           className="relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col z-10"
-          // maxHeight를 92dvh로 유지하여 상단 여백 확보
           style={{ maxHeight: "92dvh" }}
         >
           <div className="pt-4 px-6 pb-2 shrink-0 cursor-grab active:cursor-grabbing touch-none" onPointerDown={(e) => dragControls.start(e)}>
@@ -187,13 +188,14 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
             </div>
           </div>
 
-          {/* 내부 스크롤 영역:
-             touch-action: pan-y (상하 스크롤만 허용)
-             overscroll-behavior: contain (스크롤 끝 도달 시 부모로 전파 금지 -> 중요!)
+          {/* [Step 2 핵심] 
+            - ref={modalRef} 연결: 라이브러리가 "이곳은 스크롤 허용해줄게"라고 인식함
+            - overscroll-behavior: contain 유지
           */}
           <div 
+            ref={modalRef}
             className={`px-6 pb-8 overflow-y-auto transition-[height] duration-300 ${modalStep === 'search' ? 'h-[500px]' : 'h-auto'}`}
-            style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}
+            style={{ overscrollBehavior: 'contain' }}
           >
             {modalStep === "selection" && (
               <div className="space-y-3 pb-8">
