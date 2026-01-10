@@ -24,33 +24,33 @@ const STATUS_MAP: Record<string, BookStatus> = {
 
 export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchModalProps) {
   const supabase = createClient();
+  const dragControls = useDragControls();
+  const modalRef = useRef<HTMLDivElement>(null);
   
+  // UI 상태
   const [modalStep, setModalStep] = useState<"selection" | "search">("selection");
+  const [selectedStatusLabel, setSelectedStatusLabel] = useState("");
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+
+  // 검색 관련 상태
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Book[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
-  
-  const [selectedStatusLabel, setSelectedStatusLabel] = useState("");
-  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
 
-  const dragControls = useDragControls();
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  // Body Scroll 잠금
+  // Body Scroll Locking (라이브러리 사용)
   useEffect(() => {
     const targetElement = modalRef.current;
     if (targetElement) {
-      disableBodyScroll(targetElement, {
-        reserveScrollBarGap: true,
-      });
+      disableBodyScroll(targetElement, { reserveScrollBarGap: true });
     }
     return () => {
       clearAllBodyScrollLocks();
     };
   }, []);
 
+  // 데이터 로딩 로직 (검색 기록 등)
   const fetchRecentSearches = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -61,9 +61,7 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
       .order("created_at", { ascending: false })
       .limit(10);
 
-    if (data) {
-      setRecentSearches(data.map((item) => item.term));
-    }
+    if (data) setRecentSearches(data.map((item) => item.term));
   }, [supabase]);
 
   useEffect(() => {
@@ -73,7 +71,6 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
   const saveSearchTerm = async (term: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-
     await supabase.from("recent_searches").upsert(
       { user_id: user.id, term: term, created_at: new Date().toISOString() },
       { onConflict: "user_id, term" }
@@ -83,13 +80,9 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   const removeSearchTerm = async (term: string) => {
     setRecentSearches((prev) => prev.filter((t) => t !== term));
-
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      await supabase
-        .from("recent_searches")
-        .delete()
-        .match({ user_id: user.id, term: term });
+      await supabase.from("recent_searches").delete().match({ user_id: user.id, term: term });
     }
   };
 
@@ -97,10 +90,7 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
     setRecentSearches([]);
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      await supabase
-        .from("recent_searches")
-        .delete()
-        .eq("user_id", user.id);
+      await supabase.from("recent_searches").delete().eq("user_id", user.id);
     }
   };
 
@@ -137,9 +127,7 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   const handleAddClick = (book: Book) => {
     const statusKey = STATUS_MAP[selectedStatusLabel];
-    if (statusKey) {
-      onAddBook(book, statusKey);
-    }
+    if (statusKey) onAddBook(book, statusKey);
   };
 
   return (
@@ -148,7 +136,7 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
         <motion.div 
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           onClick={onClose}
-          style={{ touchAction: 'none' }}
+          style={{ touchAction: 'none' }} // 배경 터치 방어
           onTouchMove={(e) => e.preventDefault()} 
           className="fixed inset-0 bg-black/60 backdrop-blur-sm" 
         />
@@ -158,13 +146,12 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
           transition={{ type: "spring", damping: 25, stiffness: 220 }}
           drag="y" dragControls={dragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2}
           onDragEnd={(_, info) => { if (info.offset.y > 100 || info.velocity.y > 500) onClose(); }}
-          // 모달 크기 고정 (92dvh)
           className={`relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col z-10 transition-[height] duration-300 ${
             modalStep === 'search' ? 'h-[92dvh]' : 'h-auto'
           }`}
           style={{ maxHeight: "92dvh" }}
         >
-          {/* 드래그 핸들 (고정) */}
+          {/* 드래그 핸들 */}
           <div 
             className="pt-4 px-6 pb-2 shrink-0 cursor-grab active:cursor-grabbing touch-none" 
             onPointerDown={(e) => dragControls.start(e)}
@@ -181,10 +168,7 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
             </div>
           </div>
 
-          {/* [수정 핵심] 단일 스크롤 컨테이너 (ref={modalRef})
-            - 내부에서 overflow를 또 쓰지 않고, 이 박스 하나만 스크롤되게 만듦
-            - touchAction: 'pan-y'로 터치 허용
-          */}
+          {/* 메인 스크롤 컨테이너 */}
           <div 
             ref={modalRef}
             className="px-6 pb-8 overflow-y-auto flex-1 min-h-0"
@@ -206,11 +190,7 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
             {modalStep === "search" && (
               <div className="flex flex-col">
-                {/* [수정 핵심 2] 검색창을 sticky로 설정
-                  - 리스트가 스크롤되어도 검색창은 상단에 딱 붙어있음
-                  - z-20으로 리스트보다 위에 오게 함
-                  - bg-white로 뒤에 글씨 비침 방지
-                */}
+                {/* 검색바 (Sticky) */}
                 <div className="sticky top-0 z-20 bg-white pb-2 pt-2">
                   <form onSubmit={onSearchSubmit} className="relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
@@ -246,7 +226,7 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
                   </div>
                 )}
 
-                {/* 검색 결과 리스트 (내부 스크롤 제거 -> 부모 스크롤 사용) */}
+                {/* 검색 결과 */}
                 <div className="space-y-4 pb-4 mt-2">
                   {searchResults.map((book, idx) => {
                     const isAdded = addedBooks.has(book.title + book.authors.join(""));

@@ -1,6 +1,5 @@
 "use client";
 
-// ... (imports 동일)
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
@@ -13,8 +12,8 @@ import AlertModal from "@/components/common/AlertModal";
 import SearchModal from "./components/SearchModal";
 import { Book } from "@/types/book";
 
-// ... (타입 및 상수 동일)
 type BookStatus = "reading" | "wish" | "finished";
+
 const STATUS_LABELS: Record<BookStatus, string> = {
   reading: "읽고 있는 책",
   wish: "읽고 싶은 책",
@@ -22,22 +21,27 @@ const STATUS_LABELS: Record<BookStatus, string> = {
 };
 
 export default function HomePage() {
-  // ... (로직 내부 코드는 100% 동일, 변경 없음)
   const router = useRouter();
   const supabase = createClient();
   
+  // UI 상태
   const [activeTab, setActiveTab] = useState<BookStatus>("reading");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // 데이터 상태
   const [myBooks, setMyBooks] = useState<Record<BookStatus, Book[]>>({
     reading: [],
     wish: [],
     finished: [],
   });
-  const [isLoading, setIsLoading] = useState(true);
+
+  // 알림 상태
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
 
+  // 중복 체크용 키 집합
   const addedBookKeys = new Set([
     ...myBooks.reading.map((b) => b.title + b.authors.join("")),
     ...myBooks.wish.map((b) => b.title + b.authors.join("")),
@@ -140,13 +144,10 @@ export default function HomePage() {
   const currentBooks = myBooks[activeTab];
 
   return (
-    // [수정 포인트] max-w-[430px] mx-auto 추가 -> 데스크톱에서 모바일 사이즈로 중앙 정렬
-    // shadow-2xl -> 데스크톱에서 떠 있는 느낌 추가 (선택사항)
     <div className="fixed inset-0 flex flex-col bg-white overflow-hidden max-w-[430px] mx-auto shadow-2xl">
       <Toast isVisible={showToast} message={toastMessage} />
       <AlertModal isOpen={showAlert} onClose={() => setShowAlert(false)} message="이미 등록된 책입니다" />
 
-      {/* 로그아웃 버튼: 모바일 사이즈 안에 갇히게 absolute로 변경 */}
       <button onClick={handleLogout} className="absolute top-4 right-4 z-40 px-3 py-1.5 bg-black/50 text-white text-xs rounded-full backdrop-blur-sm hover:bg-black transition-colors flex items-center gap-1 cursor-pointer">
         <LogOut className="w-3 h-3" /> 로그아웃
       </button>
@@ -200,7 +201,6 @@ export default function HomePage() {
                     </div>
                   )}
                 </div>
-                
                 <div className="space-y-1">
                   <h3 className="text-[15px] font-bold text-gray-900 leading-snug line-clamp-2">
                     {book.title}
@@ -215,7 +215,6 @@ export default function HomePage() {
         )}
       </main>
 
-      {/* 플로팅 버튼: absolute로 변경하여 컨테이너 내부에 고정 */}
       <div className="absolute bottom-[88px] left-0 w-full flex justify-center pointer-events-none z-20">
         <button 
           onClick={() => setIsModalOpen(true)}
