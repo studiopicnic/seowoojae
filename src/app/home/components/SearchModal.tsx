@@ -6,7 +6,6 @@ import { Search, X, ChevronLeft, Plus, Check } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { Book } from "@/types/book";
 import BookDetailModal from "./BookDetailModal";
-// [라이브러리 import]
 import { disableBodyScroll, enableBodyScroll, clearAllBodyScrollLocks } from "body-scroll-lock";
 
 type BookStatus = "reading" | "wish" | "finished";
@@ -38,22 +37,17 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   const dragControls = useDragControls();
 
-  // [Step 2 핵심] 스크롤이 가능한 영역을 지정하기 위한 Ref
+  // 라이브러리용 Ref
   const modalRef = useRef<HTMLDivElement>(null);
 
-  // [Step 2 핵심] 라이브러리 적용 (Body Freeze 자동화)
   useEffect(() => {
     const targetElement = modalRef.current;
-
     if (targetElement) {
-      // 1. 모달이 열리면: targetElement(리스트)를 제외하고 모든 스크롤 잠금
       disableBodyScroll(targetElement, {
-        reserveScrollBarGap: true, // PC에서 스크롤바 사라질 때 덜컹거림 방지
+        reserveScrollBarGap: true,
       });
     }
-
     return () => {
-      // 2. 모달이 닫히면: 모든 잠금 해제
       clearAllBodyScrollLocks();
     };
   }, []);
@@ -152,19 +146,15 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   return (
     <>
-      {/* [수정 포인트]
-        - touchAction: 'none'은 유지 (배경 터치 시 전체 화면 밀림 방지 보조)
-        - 복잡한 height style 제거하고 라이브러리에 의존
-      */}
+      {/* 부모: 터치 금지 (키보드 밀림 방지) */}
       <div 
         className="fixed inset-0 z-50 flex justify-center items-end"
-        style={{ touchAction: 'none' }}
+        style={{ height: '100dvh', touchAction: 'none' }}
       >
         <motion.div 
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           onClick={onClose}
-          // 배경 터치 시 이벤트 전파 막기
-          onTouchMove={(e) => e.preventDefault()} 
+          onTouchMove={(e) => e.preventDefault()}
           className="fixed inset-0 bg-black/60 backdrop-blur-sm" 
         />
 
@@ -188,14 +178,16 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
             </div>
           </div>
 
-          {/* [Step 2 핵심] 
-            - ref={modalRef} 연결: 라이브러리가 "이곳은 스크롤 허용해줄게"라고 인식함
-            - overscroll-behavior: contain 유지
-          */}
+          {/* [수정 완료] 자식: 터치 허용 (pan-y) 
+             부모의 touch-action: none을 무시하고 스크롤을 살려줌 */}
           <div 
             ref={modalRef}
             className={`px-6 pb-8 overflow-y-auto transition-[height] duration-300 ${modalStep === 'search' ? 'h-[500px]' : 'h-auto'}`}
-            style={{ overscrollBehavior: 'contain' }}
+            style={{ 
+              touchAction: 'pan-y',       // 핵심: 상하 스크롤 제스처 허용
+              overscrollBehavior: 'contain', 
+              WebkitOverflowScrolling: 'touch' // iOS 부드러운 스크롤 강제 적용
+            }}
           >
             {modalStep === "selection" && (
               <div className="space-y-3 pb-8">

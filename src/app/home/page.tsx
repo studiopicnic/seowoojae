@@ -138,8 +138,7 @@ export default function HomePage() {
   const currentBooks = myBooks[activeTab];
 
   return (
-    // [수정 포인트 1] fixed inset-0 으로 화면 전체를 고정 (브라우저 스크롤 원천 차단)
-    // 이렇게 하면 헤더가 밀려 올라가는 현상이 100% 사라집니다.
+    // fixed inset-0 유지 (헤더 고정됨)
     <div className="fixed inset-0 flex flex-col bg-white overflow-hidden">
       <Toast isVisible={showToast} message={toastMessage} />
       <AlertModal isOpen={showAlert} onClose={() => setShowAlert(false)} message="이미 등록된 책입니다" />
@@ -148,7 +147,6 @@ export default function HomePage() {
         <LogOut className="w-3 h-3" /> 로그아웃
       </button>
 
-      {/* 헤더: 스크롤 영역 밖에 있으므로 무조건 고정됨 */}
       <header className="flex flex-col items-center w-full pt-8 pb-4 bg-white z-10 shrink-0">
         <div className="flex gap-6 mb-2">
           {(["reading", "wish", "finished"] as BookStatus[]).map((tab) => (
@@ -168,14 +166,12 @@ export default function HomePage() {
         </span>
       </header>
 
-      {/* [수정 포인트 2] 메인 컨텐츠 영역에만 스크롤 부여
-          - overscroll-y-auto: 아이폰 텐션 효과 유지
-          - pb-24: 하단 네비게이션 가림 방지
-      */}
+      {/* [수정 포인트] WebkitOverflowScrolling: 'touch' 추가하여 스크롤 뻑뻑함 해결 */}
       <main 
         className={`flex-1 w-full px-6 pb-24 overflow-y-auto overscroll-y-auto scrollbar-hide ${
           isLoading || currentBooks.length === 0 ? "flex flex-col items-center justify-center" : "pt-4"
         }`}
+        style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {isLoading ? (
           <div className="text-gray-400 text-sm">내 서재를 불러오는 중...</div>
