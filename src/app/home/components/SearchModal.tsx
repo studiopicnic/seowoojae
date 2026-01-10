@@ -138,12 +138,15 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex justify-center items-end">
-        {/* [수정 포인트] 오버레이 터치 이벤트 차단 -> 키보드 올라왔을 때 배경 스크롤로 인한 밀림 방지 */}
+      {/* [수정 포인트 1] 모달을 감싸는 전체 컨테이너에 touch-action: none 적용 */}
+      {/* 이렇게 하면 키보드가 올라와도 브라우저가 화면 전체를 스크롤하지 않습니다. */}
+      <div 
+        className="fixed inset-0 z-50 flex justify-center items-end"
+        style={{ touchAction: 'none' }}
+      >
         <motion.div 
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           onClick={onClose}
-          onTouchMove={(e) => e.preventDefault()} // 여기가 핵심! 터치 무시
           className="fixed inset-0 bg-black/60 backdrop-blur-sm" 
         />
 
@@ -167,7 +170,12 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
             </div>
           </div>
 
-          <div className={`px-6 pb-8 overflow-y-auto transition-[height] duration-300 ${modalStep === 'search' ? 'h-[500px]' : 'h-auto'}`}>
+          {/* [수정 포인트 2] 내부 스크롤 영역에만 touch-action: pan-y 허용 */}
+          {/* overscroll-behavior: contain을 추가하여 스크롤이 끝에 닿았을 때 부모(화면)까지 움직이는 현상 방지 */}
+          <div 
+            className={`px-6 pb-8 overflow-y-auto transition-[height] duration-300 ${modalStep === 'search' ? 'h-[500px]' : 'h-auto'}`}
+            style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}
+          >
             {modalStep === "selection" && (
               <div className="space-y-3 pb-8">
                 {Object.keys(STATUS_MAP).map((label) => (
