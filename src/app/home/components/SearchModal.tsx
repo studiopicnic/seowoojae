@@ -37,14 +37,12 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   const dragControls = useDragControls();
 
-  // 스크롤이 가능한 영역(리스트)을 지정하기 위한 Ref
   const modalRef = useRef<HTMLDivElement>(null);
 
-  // [라이브러리 적용] Body Scroll 잠금
+  // Body Scroll 잠금
   useEffect(() => {
     const targetElement = modalRef.current;
     if (targetElement) {
-      // 이 리스트 영역(targetElement)만 스크롤 허용하고 나머지는 다 잠금
       disableBodyScroll(targetElement, {
         reserveScrollBarGap: true,
       });
@@ -98,7 +96,6 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   const clearAllSearches = async () => {
     setRecentSearches([]);
-    
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       await supabase
@@ -148,14 +145,7 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   return (
     <>
-      {/* [수정 1] 부모 컨테이너의 touchAction: 'none' 제거 
-        -> 이걸 제거해야 자식(리스트)이 터치를 받을 수 있음
-      */}
       <div className="fixed inset-0 z-50 flex justify-center items-end" style={{ height: '100dvh' }}>
-        
-        {/* [수정 2] 오버레이(배경)에만 touchAction: 'none' 적용
-            -> 배경을 잘못 터치해서 키보드가 밀리는 것을 여기서 방어 
-        */}
         <motion.div 
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           onClick={onClose}
@@ -169,12 +159,16 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
           transition={{ type: "spring", damping: 25, stiffness: 220 }}
           drag="y" dragControls={dragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2}
           onDragEnd={(_, info) => { if (info.offset.y > 100 || info.velocity.y > 500) onClose(); }}
-          className="relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col z-10"
-          style={{ maxHeight: "92dvh" }}
+          
+          // [수정 핵심 1] 모달 전체 박스 클래스
+          // modalStep이 'search'면 h-[92dvh]로 고정 (키보드 올라와도 이 크기 유지)
+          // modalStep이 'selection'이면 h-auto (내용물만큼만)
+          className={`relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col z-10 transition-[height] duration-300 ${
+            modalStep === 'search' ? 'h-[92dvh]' : 'h-auto'
+          }`}
+          style={{ maxHeight: "92dvh" }} // 안전장치 (화면보다 커지진 않게)
         >
-          {/* [수정 3] 헤더(드래그 핸들) 영역에도 touchAction: 'none' 적용
-              -> 여긴 스크롤이 아니라 드래그를 해야 하므로 스크롤 이벤트 차단 
-          */}
+          {/* 드래그 핸들 & 헤더 */}
           <div 
             className="pt-4 px-6 pb-2 shrink-0 cursor-grab active:cursor-grabbing touch-none" 
             onPointerDown={(e) => dragControls.start(e)}
@@ -191,14 +185,10 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
             </div>
           </div>
 
-          {/* [수정 4] 리스트 영역 설정 
-              - flex-1: 남은 공간을 꽉 채우도록 변경 (h-[500px] 같은 고정값 대신)
-              - touchAction: 'pan-y': 여기서만 "상하 스크롤 허용"
-              - overscrollBehavior: 'contain': 스크롤 끝에 닿아도 부모에게 전파 안 함 (중요!)
-          */}
+          {/* 컨텐츠 영역 */}
           <div 
             ref={modalRef}
-            className="px-6 pb-8 overflow-y-auto transition-[height] duration-300 flex-1 min-h-0"
+            className="px-6 pb-8 overflow-y-auto flex-1 min-h-0"
             style={{ 
               touchAction: 'pan-y', 
               overscrollBehavior: 'contain',
@@ -217,6 +207,7 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
             {modalStep === "search" && (
               <div className="flex flex-col h-full">
+                {/* 검색창 */}
                 <form onSubmit={onSearchSubmit} className="relative mb-6 shrink-0">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                   <input 
@@ -234,6 +225,7 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
                   )}
                 </form>
 
+                {/* 최근 검색어 */}
                 {!isSearching && !hasSearched && !searchResults.length && recentSearches.length > 0 && (
                   <div className="flex-1">
                     <div className="flex justify-between mb-4">
@@ -249,6 +241,7 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
                   </div>
                 )}
 
+                {/* 검색 결과 리스트 */}
                 <div className="flex-1 overflow-y-auto min-h-0 touch-pan-y space-y-4 pb-4">
                   {searchResults.map((book, idx) => {
                     const isAdded = addedBooks.has(book.title + book.authors.join(""));
