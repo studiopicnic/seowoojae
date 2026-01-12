@@ -41,8 +41,12 @@ export default function BookDetailModal({ book, onClose, onAdd, isAdded }: BookD
         transition={{ type: "spring", damping: 25, stiffness: 220 }}
         className="relative w-full max-w-[430px] h-full bg-white flex flex-col overflow-hidden shadow-2xl"
       >
+        {/* [수정] 헤더 패딩값 변경 (상세 페이지와 통일) 
+            - 기존: px-6 pt-12 pb-4
+            - 변경: px-4 py-3 (높이 64px, 좌우 16px, 상하 12px)
+        */}
         <div 
-          className="px-6 pt-12 pb-4 flex justify-end shrink-0 bg-white z-10"
+          className="flex items-center justify-end px-4 py-3 shrink-0 bg-white z-10"
           style={{ touchAction: 'none' }}
         >
           <button onClick={onClose} className="p-2 -mr-2 text-gray-900 hover:bg-gray-100 rounded-full transition-colors">

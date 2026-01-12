@@ -24,24 +24,20 @@ export default function HomePage() {
   const router = useRouter();
   const supabase = createClient();
   
-  // UI 상태
   const [activeTab, setActiveTab] = useState<BookStatus>("reading");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
-  // 데이터 상태
   const [myBooks, setMyBooks] = useState<Record<BookStatus, Book[]>>({
     reading: [],
     wish: [],
     finished: [],
   });
 
-  // 알림 상태
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
 
-  // 중복 체크용 키 집합
   const addedBookKeys = new Set([
     ...myBooks.reading.map((b) => b.title + b.authors.join("")),
     ...myBooks.wish.map((b) => b.title + b.authors.join("")),
@@ -69,6 +65,7 @@ export default function HomePage() {
       data?.forEach((item: any) => {
         if (item.status in newBooks) {
           newBooks[item.status as BookStatus].push({
+            id: item.id, 
             title: item.title,
             authors: item.authors,
             translators: item.translators,
@@ -76,6 +73,10 @@ export default function HomePage() {
             publisher: item.publisher,
             contents: item.contents,
             isbn: item.isbn,
+            status: item.status,
+            start_date: item.start_date, // 날짜 정보도 미리 가져오기
+            end_date: item.end_date,
+            created_at: item.created_at,
           });
         }
       });
@@ -112,24 +113,38 @@ export default function HomePage() {
         return;
       }
 
+      let fetchedTotalPage = 0;
+      let fetchedCover = null;
+
+      if (book.isbn) {
+        try {
+          const res = await fetch(`/api/aladin?isbn=${book.isbn}`);
+          const data = await res.json();
+          if (data.page) fetchedTotalPage = data.page;
+          if (data.cover) fetchedCover = data.cover;
+        } catch (err) {
+          console.error("알라딘 데이터 조회 실패:", err);
+        }
+      }
+
+      const finalCover = fetchedCover || book.thumbnail;
+
       const { error } = await supabase.from("books").insert({
         user_id: user.id,
         title: book.title,
         authors: book.authors,
         translators: book.translators,
-        thumbnail: book.thumbnail,
+        thumbnail: finalCover,
         publisher: book.publisher,
         contents: book.contents,
         isbn: book.isbn,
         status: status,
+        total_page: fetchedTotalPage,
       });
 
       if (error) throw error;
 
-      setMyBooks((prev) => ({
-        ...prev,
-        [status]: [book, ...prev[status]], 
-      }));
+      fetchBooks(); 
       
       setToastMessage(`${STATUS_LABELS[status]}에 추가되었습니다`);
       setShowToast(true);
@@ -138,6 +153,13 @@ export default function HomePage() {
     } catch (error) {
       console.error("책 저장 실패:", error);
       alert("저장 중 오류가 발생했습니다.");
+    }
+  };
+
+  // [수정 포인트 1] 모든 상태에서 상세 페이지 진입 허용
+  const handleBookClick = (bookId?: string) => {
+    if (bookId) {
+      router.push(`/books/${bookId}`);
     }
   };
 
@@ -187,7 +209,12 @@ export default function HomePage() {
         ) : (
           <div className="grid grid-cols-2 gap-x-4 gap-y-8 pb-10">
             {currentBooks.map((book, index) => (
-              <div key={index} className="flex flex-col">
+              // [수정 포인트 2] 모든 아이템에 포인터 커서 적용
+              <div 
+                key={index} 
+                className="flex flex-col transition-opacity cursor-pointer active:opacity-80"
+                onClick={() => handleBookClick(book.id)}
+              >
                 <div className="w-full aspect-[2/3] bg-gray-100 rounded-md mb-3 shadow-sm overflow-hidden border border-gray-100 relative">
                   {book.thumbnail ? (
                     <img 

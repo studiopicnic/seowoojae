@@ -64,3 +64,81 @@ input[type="search"]::-webkit-search-results-decoration {
   display: none;
   -webkit-appearance: none;
 }
+
+/* ... 기존 내용 아래에 추가 ... */
+
+/* [커스텀 캘린더 스타일] */
+.react-calendar {
+  width: 100% !important;
+  background: white;
+  border: none !important;
+  font-family: inherit;
+  line-height: 1.125em;
+}
+
+/* 상단 네비게이션 (2025년 8월) */
+.react-calendar__navigation {
+  display: flex;
+  height: 44px;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+.react-calendar__navigation button {
+  min-width: 44px;
+  background: none;
+  font-size: 16px;
+  font-weight: 700;
+  color: #111;
+}
+.react-calendar__navigation button:disabled {
+  background-color: #f0f0f0;
+}
+
+/* 요일 (일 월 화 ...) */
+.react-calendar__month-view__weekdays {
+  text-align: center;
+  text-transform: uppercase;
+  font-weight: 400;
+  font-size: 0.85em;
+  color: #9ca3af; /* gray-400 */
+  text-decoration: none !important; 
+  margin-bottom: 10px;
+}
+.react-calendar__month-view__weekdays__weekday abbr {
+  text-decoration: none;
+}
+
+/* 날짜 타일 */
+.react-calendar__tile {
+  max-width: 100%;
+  padding: 14px 6px;
+  background: none;
+  text-align: center;
+  line-height: 16px;
+  font-size: 14px;
+  color: #111;
+}
+.react-calendar__tile:disabled {
+  background-color: #f0f0f0;
+}
+.react-calendar__tile:enabled:hover,
+.react-calendar__tile:enabled:focus {
+  background-color: #f3f4f6;
+  border-radius: 50%;
+}
+
+/* 오늘 날짜 */
+.react-calendar__tile--now {
+  background: #f3f4f6;
+  border-radius: 50%;
+  font-weight: bold;
+}
+
+/* 선택된 날짜 (검은 동그라미) */
+.react-calendar__tile--active,
+.react-calendar__tile--active:enabled:hover,
+.react-calendar__tile--active:enabled:focus {
+  background: #111 !important;
+  color: white !important;
+  border-radius: 50%;
+}
