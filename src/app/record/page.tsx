@@ -15,6 +15,7 @@ interface MemoWithBook {
   id: string;
   content: string;
   created_at: string;
+  updated_at?: string;
   book_id: string;
   books: {
     title: string;

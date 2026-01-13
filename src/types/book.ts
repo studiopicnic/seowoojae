@@ -27,7 +27,9 @@ export interface Book {
 
 export interface Memo {
   id: string;
-  book_id: string;
   content: string;
   created_at: string;
+  updated_at?: string; // [추가] 수정일 (있을 수도 있고 없을 수도 있음)
+  book_id: string;
+  user_id: string;
 }
