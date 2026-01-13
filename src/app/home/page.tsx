@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react"; // [수정] Suspense 추가
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { LogOut, Plus } from "lucide-react";
@@ -22,7 +22,8 @@ const STATUS_LABELS: Record<BookStatus, string> = {
 
 const TAB_ORDER: BookStatus[] = ["reading", "wish", "finished"];
 
-export default function HomePage() {
+// [수정] 기존 컴포넌트 이름을 HomeContent로 변경 (export default 제거)
+function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -93,7 +94,6 @@ export default function HomePage() {
     fetchBooks();
   }, [fetchBooks]);
 
-  // URL 탭 동기화
   useEffect(() => {
     const tabFromUrl = (searchParams.get("tab") as BookStatus) || "reading";
     if (TAB_ORDER.includes(tabFromUrl)) {
@@ -101,7 +101,6 @@ export default function HomePage() {
     }
   }, [searchParams]);
 
-  // [추가] 삭제 후 돌아왔을 때 토스트 팝업 처리
   useEffect(() => {
     const toastType = searchParams.get("toast");
     
@@ -109,7 +108,6 @@ export default function HomePage() {
       setToastMessage("책이 삭제되었습니다");
       setShowToast(true);
 
-      // URL 파라미터 제거 (새로고침 시 또 뜨지 않게)
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete("toast");
       window.history.replaceState({}, "", newUrl.toString());
@@ -226,7 +224,6 @@ export default function HomePage() {
         <LogOut className="w-3 h-3" /> 로그아웃
       </button>
 
-      {/* 헤더 & 탭 */}
       <header className="flex flex-col items-center w-full pt-8 pb-4 bg-white z-10 shrink-0 select-none">
         <div className="flex gap-6 mb-2 relative">
           {TAB_ORDER.map((tab) => (
@@ -246,7 +243,6 @@ export default function HomePage() {
         </span>
       </header>
 
-      {/* 메인 컨텐츠 */}
       <div className="flex-1 w-full relative overflow-hidden bg-white">
         <AnimatePresence initial={false} custom={slideDirection}>
           <motion.main
@@ -332,13 +328,22 @@ export default function HomePage() {
 
       <BottomNav />
 
-      {/* [수정] AnimatePresence 제거 & 조건부 렌더링 제거 */}
       <SearchModal 
-        isOpen={isModalOpen} // [필수] 이제 열림 상태를 직접 전달해야 합니다
+        isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onAddBook={handleAddBook}
         addedBooks={addedBookKeys} 
         />
     </div>
+  );
+}
+
+// [수정] 여기가 핵심입니다.
+// 실제 페이지 컴포넌트(HomePage)는 HomeContent를 Suspense로 감싸서 내보냅니다.
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white" />}>
+      <HomeContent />
+    </Suspense>
   );
 }

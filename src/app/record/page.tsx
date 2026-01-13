@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react"; // [수정] Suspense 추가
 import { Plus } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation"; // [수정] useSearchParams 추가
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
 import CommonHeader from "@/components/common/CommonHeader";
@@ -10,7 +10,6 @@ import BottomNav from "@/components/common/BottomNav";
 import BookSelectModal from "@/components/note/BookSelectModal";
 import Toast from "@/components/common/Toast";
 
-// (MemoWithBook 인터페이스 등 기존 코드 유지...)
 interface MemoWithBook {
   id: string;
   content: string;
@@ -22,9 +21,10 @@ interface MemoWithBook {
   };
 }
 
-export default function RecordPage() {
+// [수정] RecordContent로 이름 변경 (export default 제거)
+function RecordContent() {
   const router = useRouter();
-  const searchParams = useSearchParams(); // [추가]
+  const searchParams = useSearchParams();
   const supabase = createClient();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -34,13 +34,11 @@ export default function RecordPage() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
-  // [추가] 삭제 후 돌아왔을 때 토스트 처리
   useEffect(() => {
     if (searchParams.get("toast") === "deleted") {
       setToastMessage("노트가 삭제되었습니다");
       setShowToast(true);
       
-      // URL 파라미터 청소
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete("toast");
       window.history.replaceState({}, "", newUrl.toString());
@@ -68,8 +66,7 @@ export default function RecordPage() {
             title
           )
         `)
-        // [수정] 정렬 기준 변경: created_at -> updated_at
-        .order("updated_at", { ascending: false }); 
+        .order("updated_at", { ascending: false });
 
       if (error) throw error;
       
@@ -82,7 +79,9 @@ export default function RecordPage() {
     }
   }, [supabase]);
 
-  useEffect(() => { fetchMemos(); }, [fetchMemos]);
+  useEffect(() => {
+    fetchMemos();
+  }, [fetchMemos]);
 
   const handleNoteAdded = () => {
     fetchMemos();
@@ -124,7 +123,6 @@ export default function RecordPage() {
               <div 
                 key={memo.id} 
                 className="w-full border border-gray-100 rounded-[12px] p-5 flex flex-col gap-3 shadow-sm active:scale-[0.99] transition-transform cursor-pointer"
-                // [수정] 클릭 시 노트 상세 페이지로 이동
                 onClick={() => router.push(`/notes/${memo.id}`)} 
               >
                 <div className="text-center">
@@ -150,5 +148,14 @@ export default function RecordPage() {
         onSaveComplete={handleNoteAdded} 
       />
     </div>
+  );
+}
+
+// [수정] Suspense로 감싸서 export
+export default function RecordPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white" />}>
+      <RecordContent />
+    </Suspense>
   );
 }
