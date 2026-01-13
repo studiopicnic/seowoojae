@@ -108,16 +108,41 @@ export default function BookDetailPage() {
     setBook({ ...book, status: "reading", start_date: now });
   };
 
-  // 4. 독서 완료
-  const handleFinishReading = async () => {
-    if (!book?.id) return;
-    if (!confirm("독서를 완료 처리하시겠습니까?")) return;
+// 수정된 handleFinishReading 함수
+const handleFinishReading = async () => {
+  if (!book?.id) return;
+
+  // 1. 브라우저 호환성을 위해 window 객체 명시
+  // 모바일에서 가끔 confirm이 씹히는 현상 방지
+  const isConfirmed = window.confirm("독서를 완료 처리하시겠습니까?");
+  if (!isConfirmed) return;
+
+  try {
     const now = new Date().toISOString();
-    const { error } = await supabase.from("books").update({ status: "finished", end_date: now, current_page: totalPage }).eq("id", book.id);
-    if (error) return alert("오류 발생");
+    
+    const { error } = await supabase
+      .from("books")
+      .update({ 
+        status: "finished", 
+        end_date: now, 
+        current_page: totalPage 
+      })
+      .eq("id", book.id);
+
+    if (error) {
+      console.error(error);
+      alert("처리 중 오류가 발생했습니다.");
+      return;
+    }
+
+    // 성공 처리
     setBook({ ...book, status: "finished", end_date: now });
     setCurrentPage(totalPage);
-  };
+
+  } catch (err) {
+    console.error("완료 처리 실패:", err);
+  }
+};
 
   // 5. 슬라이더 변경
   const handleSliderChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
