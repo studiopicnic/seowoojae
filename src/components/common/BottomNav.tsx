@@ -1,32 +1,43 @@
-// src/components/common/BottomNav.tsx
 "use client";
 
-import { Home, PenSquare, User } from "lucide-react";
-import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Home, Edit, User } from "lucide-react";
 
 export default function BottomNav() {
-  const router = useRouter();
-  const pathname = usePathname(); // 현재 주소를 알아내서 아이콘 색상을 바꿀 예정
+  const pathname = usePathname();
+
+  // 현재 경로가 해당 탭인지 확인하는 함수
+  const isActive = (path: string) => pathname?.startsWith(path);
 
   return (
-    <nav className="fixed bottom-0 w-full max-w-[430px] z-20 h-[60px] bg-white border-t border-gray-100 flex items-center justify-between px-10 pb-2">
-      <button 
-        onClick={() => router.push("/home")}
-        className={`p-2 transition-colors cursor-pointer ${
-          pathname === "/home" ? "text-gray-900" : "text-gray-300 hover:text-gray-500"
-        }`}
-      >
-        <Home className="w-6 h-6 fill-current" />
-      </button>
+    <nav className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-white border-t border-gray-100 flex justify-around items-center h-[88px] pb-5 z-50">
+      {/* 1. 홈 탭 */}
+      <Link href="/home" className="p-4 active:scale-95 transition-transform">
+        <Home 
+          className={`w-6 h-6 transition-colors ${
+            isActive("/home") ? "text-black fill-black" : "text-gray-300"
+          }`} 
+        />
+      </Link>
 
-      {/* 추후 기능 연결 예정 */}
-      <button className="p-2 text-gray-300 hover:text-gray-500 transition-colors cursor-pointer">
-        <PenSquare className="w-6 h-6" />
-      </button>
+      {/* 2. 노트(기록) 탭 - 여기를 눌러야 이동합니다! */}
+      <Link href="/record" className="p-4 active:scale-95 transition-transform">
+        <Edit 
+          className={`w-6 h-6 transition-colors ${
+            isActive("/record") ? "text-black fill-black" : "text-gray-300"
+          }`} 
+        />
+      </Link>
 
-      <button className="p-2 text-gray-300 hover:text-gray-500 transition-colors cursor-pointer">
-        <User className="w-6 h-6" />
-      </button>
+      {/* 3. 마이페이지 탭 (아직 없다면 링크만 걸어둠) */}
+      <Link href="/mypage" className="p-4 active:scale-95 transition-transform">
+        <User 
+          className={`w-6 h-6 transition-colors ${
+            isActive("/mypage") ? "text-black fill-black" : "text-gray-300"
+          }`} 
+        />
+      </Link>
     </nav>
   );
 }

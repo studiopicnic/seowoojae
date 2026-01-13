@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence, useDragControls } from "framer-motion";
+import { useState, useEffect, useCallback } from "react";
 import { Search, X, ChevronLeft, Plus, Check } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { Book } from "@/types/book";
+
+// [공통 컴포넌트]
+import BottomSheet from "@/components/common/BottomSheet";
 import BookDetailModal from "./BookDetailModal";
-import { disableBodyScroll, enableBodyScroll, clearAllBodyScrollLocks } from "body-scroll-lock";
 
 type BookStatus = "reading" | "wish" | "finished";
 
 interface SearchModalProps {
+  isOpen: boolean;
   onClose: () => void;
   onAddBook: (book: Book, status: BookStatus) => void;
   addedBooks: Set<string>;
@@ -22,10 +24,8 @@ const STATUS_MAP: Record<string, BookStatus> = {
   "읽은 책": "finished",
 };
 
-export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchModalProps) {
+export default function SearchModal({ isOpen, onClose, onAddBook, addedBooks }: SearchModalProps) {
   const supabase = createClient();
-  const dragControls = useDragControls();
-  const modalRef = useRef<HTMLDivElement>(null);
   
   // UI 상태
   const [modalStep, setModalStep] = useState<"selection" | "search">("selection");
@@ -39,18 +39,7 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Body Scroll Locking (라이브러리 사용)
-  useEffect(() => {
-    const targetElement = modalRef.current;
-    if (targetElement) {
-      disableBodyScroll(targetElement, { reserveScrollBarGap: true });
-    }
-    return () => {
-      clearAllBodyScrollLocks();
-    };
-  }, []);
-
-  // 데이터 로딩 로직 (검색 기록 등)
+  // 데이터 로딩 (최근 검색어)
   const fetchRecentSearches = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -132,138 +121,125 @@ export default function SearchModal({ onClose, onAddBook, addedBooks }: SearchMo
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex justify-center items-end" style={{ height: '100dvh' }}>
-        <motion.div 
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          onClick={onClose}
-          style={{ touchAction: 'none' }} // 배경 터치 방어
-          onTouchMove={(e) => e.preventDefault()} 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm" 
-        />
+      <BottomSheet
+        isOpen={isOpen}
+        onClose={onClose}
+        className={`transition-[height] duration-300 ${
+          modalStep === 'search' ? 'h-[70dvh]' : 'h-auto'
+        }`}
+      >
+        {/* [수정] 헤더 패딩 조정: mb-4 -> py-4 (BookSelectModal과 간격 통일) */}
+        <div className="relative flex items-center justify-center py-4 px-6 shrink-0">
+          {modalStep === "search" && (
+            <button 
+              onClick={() => setModalStep("selection")} 
+              className="absolute left-6 p-1 -ml-1 text-gray-500 hover:text-gray-900"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+          )}
+          <h3 className="text-lg font-bold text-gray-900">추가하기</h3>
+        </div>
 
-        <motion.div
-          initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-          transition={{ type: "spring", damping: 25, stiffness: 220 }}
-          drag="y" dragControls={dragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2}
-          onDragEnd={(_, info) => { if (info.offset.y > 100 || info.velocity.y > 500) onClose(); }}
-          className={`relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col z-10 transition-[height] duration-300 ${
-            modalStep === 'search' ? 'h-[70dvh]' : 'h-auto'
-          }`}
-          style={{ maxHeight: "70dvh" }}
+        {/* 컨텐츠 영역 */}
+        <div 
+          className="px-6 pb-8 overflow-y-auto flex-1 min-h-0 scrollbar-hide"
+          style={{ 
+            touchAction: 'pan-y', 
+            overscrollBehavior: 'contain',
+            WebkitOverflowScrolling: 'touch'
+          }}
         >
-          {/* 드래그 핸들 */}
-          <div 
-            className="pt-4 px-6 pb-2 shrink-0 cursor-grab active:cursor-grabbing touch-none" 
-            onPointerDown={(e) => dragControls.start(e)}
-            style={{ touchAction: 'none' }}
-          >
-            <div className="w-10 h-1.5 bg-gray-200 rounded-full mx-auto mb-6"></div>
-            <div className="relative flex items-center justify-center mb-4">
-              {modalStep === "search" && (
-                <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setModalStep("selection")} className="absolute left-0 p-1 -ml-1 text-gray-500 hover:text-gray-900">
-                  <ChevronLeft className="w-6 h-6" />
+          {/* 1. 상태 선택 화면 */}
+          {modalStep === "selection" && (
+            <div className="space-y-3 pb-8">
+              {Object.keys(STATUS_MAP).map((label) => (
+                <button 
+                  key={label} 
+                  onClick={() => handleSelectStatus(label)} 
+                  className="w-full py-4 text-[15px] font-medium text-gray-900 border border-gray-200 rounded-xl active:bg-gray-50 transition-colors"
+                >
+                  {label}
                 </button>
-              )}
-              <h3 className="text-lg font-bold text-gray-900">추가하기</h3>
+              ))}
             </div>
-          </div>
+          )}
 
-          {/* 메인 스크롤 컨테이너 */}
-          <div 
-            ref={modalRef}
-            className="px-6 pb-8 overflow-y-auto flex-1 min-h-0"
-            style={{ 
-              touchAction: 'pan-y', 
-              overscrollBehavior: 'contain',
-              WebkitOverflowScrolling: 'touch'
-            }}
-          >
-            {modalStep === "selection" && (
-              <div className="space-y-3 pb-8">
-                {Object.keys(STATUS_MAP).map((label) => (
-                  <button key={label} onClick={() => handleSelectStatus(label)} className="w-full py-4 text-[15px] font-medium text-gray-900 border border-gray-200 rounded-xl active:bg-gray-50 transition-colors">
-                    {label}
-                  </button>
-                ))}
+          {/* 2. 검색 화면 */}
+          {modalStep === "search" && (
+            <div className="flex flex-col">
+              {/* 검색바 (Sticky) */}
+              <div className="sticky top-0 z-20 bg-white pb-2 pt-2">
+                <form onSubmit={onSearchSubmit} className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                  <input 
+                    type="search"
+                    placeholder="책 제목이나 저자를 입력하세요"
+                    value={searchQuery}
+                    onChange={(e) => { setSearchQuery(e.target.value); setHasSearched(false); }}
+                    className="w-full py-4 pl-12 pr-12 text-[15px] bg-gray-50 text-gray-900 rounded-xl outline-none focus:ring-2 focus:ring-gray-900/10"
+                    autoFocus
+                  />
+                  {searchQuery && (
+                    <button type="button" onClick={() => { setSearchQuery(""); setSearchResults([]); setHasSearched(false); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-gray-400">
+                      <X className="w-5 h-5" />
+                    </button>
+                  )}
+                </form>
               </div>
-            )}
 
-            {modalStep === "search" && (
-              <div className="flex flex-col">
-                {/* 검색바 (Sticky) */}
-                <div className="sticky top-0 z-20 bg-white pb-2 pt-2">
-                  <form onSubmit={onSearchSubmit} className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-                    <input 
-                      type="search"
-                      placeholder="책 제목이나 저자를 입력하세요"
-                      value={searchQuery}
-                      onChange={(e) => { setSearchQuery(e.target.value); setHasSearched(false); }}
-                      className="w-full py-4 pl-12 pr-12 text-[15px] bg-gray-50 text-gray-900 rounded-xl outline-none focus:ring-2 focus:ring-gray-900/10"
-                      autoFocus
-                    />
-                    {searchQuery && (
-                      <button type="button" onClick={() => { setSearchQuery(""); setSearchResults([]); setHasSearched(false); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-gray-400">
-                        <X className="w-5 h-5" />
-                      </button>
-                    )}
-                  </form>
-                </div>
-
-                {/* 최근 검색어 */}
-                {!isSearching && !hasSearched && !searchResults.length && recentSearches.length > 0 && (
-                  <div className="mt-4 mb-4">
-                    <div className="flex justify-between mb-2">
-                      <span className="text-[13px] font-medium text-gray-500">최근 검색어</span>
-                      <button onClick={clearAllSearches} className="text-[12px] text-gray-400">모두 삭제</button>
-                    </div>
-                    {recentSearches.map(term => (
-                      <div key={term} onClick={() => { setSearchQuery(term); handleSearch(term); }} className="flex justify-between py-3 cursor-pointer border-b border-gray-50 last:border-0">
-                        <span className="text-[15px] text-gray-900">{term}</span>
-                        <button onClick={(e) => { e.stopPropagation(); removeSearchTerm(term); }} className="p-2 text-gray-300"><X className="w-4 h-4"/></button>
-                      </div>
-                    ))}
+              {/* 최근 검색어 */}
+              {!isSearching && !hasSearched && !searchResults.length && recentSearches.length > 0 && (
+                <div className="mt-4 mb-4">
+                  <div className="flex justify-between mb-2">
+                    <span className="text-[13px] font-medium text-gray-500">최근 검색어</span>
+                    <button onClick={clearAllSearches} className="text-[12px] text-gray-400">모두 삭제</button>
                   </div>
-                )}
-
-                {/* 검색 결과 */}
-                <div className="space-y-4 pb-4 mt-2">
-                  {searchResults.map((book, idx) => {
-                    const isAdded = addedBooks.has(book.title + book.authors.join(""));
-                    return (
-                      <div key={idx} onClick={() => setSelectedBook(book)} className="flex gap-4 p-2 hover:bg-gray-50 rounded-lg cursor-pointer items-center">
-                        <div className="w-[60px] h-[86px] bg-gray-200 rounded overflow-hidden shrink-0">
-                          {book.thumbnail && <img src={book.thumbnail} alt="" className="w-full h-full object-cover" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-[15px] font-bold truncate">{book.title}</h4>
-                          <p className="text-[13px] text-gray-500 mt-1 truncate">{book.authors.join(", ")}</p>
-                        </div>
-                        <button onClick={(e) => { e.stopPropagation(); handleAddClick(book); }} className={`w-9 h-9 rounded-full flex items-center justify-center ${isAdded ? "bg-white border shadow-sm" : "bg-gray-100"}`}>
-                          {isAdded ? <Check className="w-5 h-5"/> : <Plus className="w-5 h-5 text-gray-400"/>}
-                        </button>
-                      </div>
-                    );
-                  })}
-                  {isSearching && <div className="text-center py-10 text-gray-400 text-sm">검색중...</div>}
-                  {!isSearching && hasSearched && !searchResults.length && <div className="text-center py-10 text-gray-400 text-sm">검색 결과가 없습니다.</div>}
+                  {recentSearches.map(term => (
+                    <div key={term} onClick={() => { setSearchQuery(term); handleSearch(term); }} className="flex justify-between py-3 cursor-pointer border-b border-gray-50 last:border-0">
+                      <span className="text-[15px] text-gray-900">{term}</span>
+                      <button onClick={(e) => { e.stopPropagation(); removeSearchTerm(term); }} className="p-2 text-gray-300"><X className="w-4 h-4"/></button>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            )}
-          </div>
-        </motion.div>
-      </div>
+              )}
 
-      <AnimatePresence>
-        {selectedBook && (
-          <BookDetailModal 
-            book={selectedBook}
-            onClose={() => setSelectedBook(null)}
-            onAdd={(book) => { handleAddClick(book); setSelectedBook(null); }}
-            isAdded={addedBooks.has(selectedBook.title + selectedBook.authors.join(""))}
-          />
-        )}
-      </AnimatePresence>
+              {/* 검색 결과 */}
+              <div className="space-y-4 pb-4 mt-2">
+                {searchResults.map((book, idx) => {
+                  const isAdded = addedBooks.has(book.title + book.authors.join(""));
+                  return (
+                    <div key={idx} onClick={() => setSelectedBook(book)} className="flex gap-4 p-2 hover:bg-gray-50 rounded-lg cursor-pointer items-center">
+                      <div className="w-[60px] h-[86px] bg-gray-200 rounded overflow-hidden shrink-0">
+                        {book.thumbnail && <img src={book.thumbnail} alt="" className="w-full h-full object-cover" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-[15px] font-bold truncate">{book.title}</h4>
+                        <p className="text-[13px] text-gray-500 mt-1 truncate">{book.authors.join(", ")}</p>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); handleAddClick(book); }} className={`w-9 h-9 rounded-full flex items-center justify-center ${isAdded ? "bg-white border shadow-sm" : "bg-gray-100"}`}>
+                        {isAdded ? <Check className="w-5 h-5"/> : <Plus className="w-5 h-5 text-gray-400"/>}
+                      </button>
+                    </div>
+                  );
+                })}
+                {isSearching && <div className="text-center py-10 text-gray-400 text-sm">검색중...</div>}
+                {!isSearching && hasSearched && !searchResults.length && <div className="text-center py-10 text-gray-400 text-sm">검색 결과가 없습니다.</div>}
+              </div>
+            </div>
+          )}
+        </div>
+      </BottomSheet>
+
+      {/* 책 상세 팝업 (이중 모달) */}
+      {selectedBook && (
+        <BookDetailModal 
+          book={selectedBook}
+          onClose={() => setSelectedBook(null)}
+          onAdd={(book) => { handleAddClick(book); setSelectedBook(null); }}
+          isAdded={addedBooks.has(selectedBook.title + selectedBook.authors.join(""))}
+        />
+      )}
     </>
   );
 }

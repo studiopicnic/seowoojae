@@ -2,171 +2,223 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { ChevronLeft, MoreHorizontal } from "lucide-react"; // [추가] 아이콘 직접 사용
 import { createClient } from "@/utils/supabase/client";
-import { Book, Memo } from "@/types/book";
+import { Book, Memo, BookStatus } from "@/types/book";
 
-// 컴포넌트들
-import BookHeader from "@/components/book-detail/BookHeader";
+// [수정] BookHeader 제거하고 CommonHeader 추가
+import CommonHeader from "@/components/common/CommonHeader";
 import BookHeroSection from "@/components/book-detail/BookHeroSection";
 import ReadingController from "@/components/book-detail/ReadingController";
 import MemoSection from "@/components/book-detail/MemoSection";
+import BookMenuOverlay from "@/components/book-detail/BookMenuOverlay";
+import BookSelectModal from "@/components/note/BookSelectModal";
 
-// 모달들
+// 모달들 (내부적으로 FullScreenModal 적용됨)
 import InputModal from "@/components/common/InputModal";
 import DateSettingsModal from "@/components/book/DateSettingsModal";
-import ConfirmModal from "@/components/common/ConfirmModal"; // [추가]
+import ConfirmModal from "@/components/common/ConfirmModal";
+import RatingModal from "@/components/book/RatingModal";
+import Toast from "@/components/common/Toast";
 
 export default function BookDetailPage() {
   const router = useRouter();
   const params = useParams();
   const supabase = createClient();
 
-  // ... (기존 상태들 유지) ...
   const [book, setBook] = useState<Book | null>(null);
   const [memos, setMemos] = useState<Memo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPage, setTotalPage] = useState(0);
 
-  // 모달 상태들
+  // --- 모달 상태 관리 ---
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
-  const [inputModalType, setInputModalType] = useState<"current" | "total" | "rating">("current");
-  const [isDateModalOpen, setIsDateModalOpen] = useState(false);
+  const [inputModalType, setInputModalType] = useState<"current" | "total">("current");
   
-  // [추가] 독서 완료 확인 모달 상태
+  const [isDateModalOpen, setIsDateModalOpen] = useState(false);
+  const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
+  
   const [isFinishConfirmOpen, setIsFinishConfirmOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // ... (fetchBookDetail, handleDeleteBook, handleDateUpdate 등 기존 로직 유지) ...
+  const [isMemoModalOpen, setIsMemoModalOpen] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+
+  // 데이터 로딩
   const fetchBookDetail = useCallback(async () => {
-     // ... (기존 코드 생략) ...
-     const { data: bookData, error } = await supabase.from("books").select("*").eq("id", params.id).single();
-     if (bookData) {
-        setBook(bookData);
-        setCurrentPage(bookData.current_page || 0);
-        setTotalPage(bookData.total_page || 0);
-     }
-     // ... (메모 로딩 등) ...
-     setIsLoading(false);
-  }, [params?.id, supabase]);
+    if (!params?.id) return;
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { router.replace("/login"); return; }
+
+    const { data: bookData, error } = await supabase
+      .from("books")
+      .select("*")
+      .eq("id", params.id)
+      .single();
+
+    if (error) {
+      console.error("책 정보 로딩 실패:", error);
+      setIsLoading(false);
+      return;
+    }
+    if (bookData) {
+      setBook(bookData);
+      setCurrentPage(bookData.current_page || 0);
+      setTotalPage(bookData.total_page || 0);
+    }
+    const { data: memoData } = await supabase
+      .from("memos")
+      .select("*")
+      .eq("book_id", params.id)
+      .order("created_at", { ascending: false });
+    if (memoData) setMemos(memoData);
+    setIsLoading(false);
+  }, [params?.id, supabase, router]);
 
   useEffect(() => { fetchBookDetail(); }, [fetchBookDetail]);
 
-  // ... (handleDeleteBook, handleDateUpdate, handleStartReading 등 기존 함수 유지) ...
+  const executeDeleteBook = async () => {
+    if (!book?.id) return;
+    const { error } = await supabase.from("books").delete().eq("id", book.id);
+    if (error) { alert("오류"); return; }
+    router.replace("/home?toast=deleted");
+  };
+
+  const handleStatusChange = async (newStatus: BookStatus) => {
+    if (!book?.id) return;
+    const updates: any = { status: newStatus };
+    const now = new Date().toISOString();
+    if (newStatus === "reading") {
+      if (!book.start_date) updates.start_date = now;
+      updates.end_date = null;
+    } else if (newStatus === "finished") {
+      updates.end_date = now;
+      if (!book.start_date) updates.start_date = now;
+      updates.current_page = totalPage;
+    } else if (newStatus === "wish") {
+      updates.start_date = null;
+      updates.end_date = null;
+      updates.current_page = 0;
+    }
+    const { error } = await supabase.from("books").update(updates).eq("id", book.id);
+    if (error) { alert("실패"); return; }
+    setBook({ ...book, ...updates });
+    if (updates.current_page !== undefined) setCurrentPage(updates.current_page);
+    setIsMenuOpen(false);
+  };
+
+  const handleDateUpdate = async (start: Date, end: Date | null) => {
+     if(!book?.id) return;
+     const updates: any = { start_date: start.toISOString() };
+     if (end) updates.end_date = end.toISOString();
+     await supabase.from("books").update(updates).eq("id", book.id);
+     setBook({ ...book, ...updates });
+  };
 
   const handleStartReading = async () => {
-    // ... (기존과 동일)
-    if (!book?.id) return;
-    const now = new Date().toISOString();
-    const { error } = await supabase.from("books").update({ status: "reading", start_date: now, total_page: totalPage }).eq("id", book.id);
-    if (error) return alert("오류 발생");
-    setBook({ ...book, status: "reading", start_date: now });
+     if (!book?.id) return;
+     const now = new Date().toISOString();
+     const { error } = await supabase.from("books").update({ status: "reading", start_date: now, total_page: totalPage }).eq("id", book.id);
+     if (error) return alert("오류");
+     setBook({ ...book, status: "reading", start_date: now });
   };
 
+  const handleFinishButton = () => { setIsFinishConfirmOpen(true); };
 
-  // [수정] 1. 버튼 누르면 모달만 엽니다.
-  const handleFinishButton = () => {
-    setIsFinishConfirmOpen(true);
-  };
-
-  // [수정] 2. 실제 완료 처리 로직 (모달에서 '확인' 누르면 실행됨)
   const executeFinishReading = async () => {
-    if (!book?.id) return;
-
-    const now = new Date().toISOString();
-    
-    const { error } = await supabase
-      .from("books")
-      .update({ 
-        status: "finished", 
-        end_date: now, 
-        current_page: totalPage 
-      })
-      .eq("id", book.id);
-
-    if (error) {
-      alert("처리 중 오류가 발생했습니다.");
-      return;
-    }
-
-    setBook({ ...book, status: "finished", end_date: now });
-    setCurrentPage(totalPage);
+     if (!book?.id) return;
+     const now = new Date().toISOString();
+     const { error } = await supabase.from("books").update({ status: "finished", end_date: now, current_page: totalPage }).eq("id", book.id);
+     if (error) return alert("오류");
+     setBook({ ...book, status: "finished", end_date: now });
+     setCurrentPage(totalPage);
   };
 
-  // ... (handleSliderChange, openInputModal, handleInputConfirm, getModalTitle 등 유지) ...
   const handleSliderChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newVal = Number(e.target.value);
-      setCurrentPage(newVal);
-      if (book?.id) await supabase.from("books").update({ current_page: newVal }).eq("id", book.id);
+     const newVal = Number(e.target.value);
+     setCurrentPage(newVal);
+     if (book?.id) await supabase.from("books").update({ current_page: newVal }).eq("id", book.id);
   };
-  const openInputModal = (type: "current" | "total" | "rating") => {
-    setInputModalType(type);
-    setIsInputModalOpen(true);
-  };
+
+  const openInputModal = (type: "current" | "total") => { setInputModalType(type); setIsInputModalOpen(true); };
+
   const handleInputConfirm = async (value: number) => {
-    // ... (기존 로직 유지) ...
-    if (!book?.id) return;
-    if (inputModalType === "current") {
-        const validValue = totalPage > 0 ? Math.min(value, totalPage) : value;
-        setCurrentPage(validValue);
-        await supabase.from("books").update({ current_page: validValue }).eq("id", book.id);
-    } else if (inputModalType === "total") {
-        setTotalPage(value);
-        // ... (나머지 로직)
-    } else if (inputModalType === "rating") {
-        const validRating = Math.min(Math.max(value, 0), 5);
-        await supabase.from("books").update({ rating: validRating }).eq("id", book.id);
-        setBook({ ...book, rating: validRating });
-    }
+     if (!book?.id) return;
+     if (inputModalType === "current") {
+       const validValue = totalPage > 0 ? Math.min(value, totalPage) : value;
+       setCurrentPage(validValue);
+       await supabase.from("books").update({ current_page: validValue }).eq("id", book.id);
+     } else {
+       setTotalPage(value);
+       if (value < currentPage) {
+           setCurrentPage(value);
+           await supabase.from("books").update({ total_page: value, current_page: value }).eq("id", book.id);
+       } else {
+           await supabase.from("books").update({ total_page: value }).eq("id", book.id);
+       }
+     }
   };
-  
-  // 렌더링 헬퍼
+
+  const handleRatingUpdate = async (rating: number) => {
+     if (!book?.id) return;
+     const { error } = await supabase.from("books").update({ rating: rating }).eq("id", book.id);
+     if (error) return alert("실패");
+     setBook({ ...book, rating: rating });
+  };
+
+  const handleMemoSaved = () => {
+    fetchBookDetail();
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 2000);
+  };
+
+
   const percentage = totalPage > 0 ? Math.floor((currentPage / totalPage) * 100) : 0;
   if (isLoading || !book) return <div className="min-h-screen bg-white" />;
-
-  // ... (getModalTitle 등) ...
-  const getModalTitle = () => {
-      if (inputModalType === "rating") return "평점 입력 (0~5)";
-      if (inputModalType === "current") return "현재 페이지 수정";
-      return "총 페이지 수 입력";
-  };
-  const getModalInitialValue = () => {
-      if (inputModalType === "rating") return book.rating || 5;
-      if (inputModalType === "current") return currentPage;
-      return totalPage;
-  };
-
-  const handleDeleteBook = async () => {
-      // ... 삭제 로직 ...
-      // 참고: 삭제도 나중에 ConfirmModal로 바꾸면 좋습니다. 일단은 그대로 둡니다.
-      if (!book?.id) return;
-      if (!confirm("정말 삭제하시겠습니까?")) return;
-      await supabase.from("books").delete().eq("id", book.id);
-      router.replace("/home");
-  };
-  const handleDateUpdate = async (start: Date, end: Date | null) => {
-      // ... 기존 날짜 업데이트 로직 ...
-      if(!book?.id) return;
-      const updates: any = { start_date: start.toISOString() };
-      if (end) updates.end_date = end.toISOString();
-      await supabase.from("books").update(updates).eq("id", book.id);
-      setBook({ ...book, ...updates });
-  };
-
 
   return (
     <div className="fixed inset-0 flex flex-col bg-white max-w-[430px] mx-auto shadow-2xl overflow-hidden">
       
-      {/* [추가] 독서 완료 확인 모달 */}
+      <Toast isVisible={showToast} message="새로운 노트가 추가되었습니다" />
+
+      {/* 1. 더보기 메뉴 오버레이 (OverlayModal 적용됨) */}
+      <BookMenuOverlay
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        currentStatus={book.status}
+        onStatusChange={handleStatusChange}
+        onDeleteClick={() => {
+          setIsMenuOpen(false); 
+          setIsDeleteConfirmOpen(true); 
+        }}
+      />
+
+      {/* 2. 삭제 확인 모달 */}
+      <ConfirmModal
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={executeDeleteBook}
+        title="이 책을 삭제하시겠습니까?"
+        message="책의 독서 기록과 메모가 함께 삭제됩니다."
+        confirmText="삭제"
+        cancelText="취소"
+        isDanger={true} 
+      />
+
+      {/* 3. 독서 완료 확인 모달 */}
       <ConfirmModal
         isOpen={isFinishConfirmOpen}
         onClose={() => setIsFinishConfirmOpen(false)}
-        onConfirm={executeFinishReading} // 확인 누르면 실행
+        onConfirm={executeFinishReading}
         title="독서 완료"
         message="이 책을 다 읽으셨나요?"
         confirmText="완료"
       />
 
-      {/* 기존 모달들 */}
+      {/* 4. 기타 모달들 (FullScreenModal 적용됨) */}
       <DateSettingsModal 
         isOpen={isDateModalOpen}
         onClose={() => setIsDateModalOpen(false)}
@@ -175,15 +227,39 @@ export default function BookDetailPage() {
         initialEndDate={book.end_date}
         isFinished={book.status === "finished"}
       />
+      <RatingModal 
+        isOpen={isRatingModalOpen}
+        onClose={() => setIsRatingModalOpen(false)}
+        onConfirm={handleRatingUpdate}
+        initialRating={book.rating}
+      />
       <InputModal 
         isOpen={isInputModalOpen}
         onClose={() => setIsInputModalOpen(false)}
         onConfirm={handleInputConfirm}
-        title={getModalTitle()}
-        initialValue={getModalInitialValue()}
+        title={inputModalType === "current" ? "현재 페이지 수정" : "총 페이지 수 입력"}
+        initialValue={inputModalType === "current" ? currentPage : totalPage}
       />
 
-      <BookHeader onDelete={handleDeleteBook} />
+      <BookSelectModal 
+        isOpen={isMemoModalOpen}
+        onClose={() => setIsMemoModalOpen(false)}
+        onSaveComplete={handleMemoSaved}
+        initialBook={book} 
+      />
+
+      {/* --- 메인 화면 --- */}
+      
+      {/* [수정 완료] 공통 헤더 적용 */}
+      <CommonHeader 
+        // 왼쪽: 뒤로가기
+        leftIcon={<ChevronLeft className="w-6 h-6" />}
+        onLeftClick={() => router.back()}
+        
+        // 오른쪽: 더보기 메뉴
+        rightIcon={<MoreHorizontal className="w-6 h-6" />}
+        onRightClick={() => setIsMenuOpen(true)}
+      />
 
       <main 
         className="flex-1 px-6 pt-2 pb-10 overflow-y-auto overscroll-y-auto scrollbar-hide"
@@ -193,7 +269,7 @@ export default function BookDetailPage() {
           book={book} 
           percentage={percentage}
           onDateClick={() => setIsDateModalOpen(true)}
-          onRatingClick={() => openInputModal("rating")}
+          onRatingClick={() => setIsRatingModalOpen(true)}
         />
 
         <ReadingController 
@@ -205,12 +281,12 @@ export default function BookDetailPage() {
           onCurrentPageClick={() => openInputModal("current")}
           onTotalPageClick={() => openInputModal("total")}
           onStartReading={handleStartReading}
-          onFinishReading={handleFinishButton} // [수정] 모달 여는 함수 연결
+          onFinishReading={handleFinishButton}
         />
 
         <MemoSection 
           memos={memos}
-          onAddMemo={() => alert("메모 작성 모달 열기")}
+          onAddMemo={() => setIsMemoModalOpen(true)} 
           isReadingOrFinished={book.status === "reading" || book.status === "finished"}
         />
       </main>

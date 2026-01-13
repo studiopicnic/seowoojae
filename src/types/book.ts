@@ -1,7 +1,11 @@
+// src/types/book.ts
+
+// [추가] 책 상태 타입 정의
+export type BookStatus = "reading" | "wish" | "finished";
+
 export interface Book {
-  id?: string;
+  id: string;
   user_id?: string;
-  
   title: string;
   authors: string[];
   translators?: string[];
@@ -9,25 +13,21 @@ export interface Book {
   publisher?: string;
   contents?: string;
   isbn?: string;
+  total_page?: number;
+  current_page?: number;
   
-  status?: "reading" | "wish" | "finished";
+  // [수정] string -> BookStatus로 변경 (자동완성 됨)
+  status: BookStatus; 
   
   start_date?: string;
-  // [추가] 독서 종료일
-  end_date?: string; 
-  
-  current_page?: number;
-  total_page?: number;
-  
-  // [추가] 평점 (없을 수도 있음)
-  rating?: number; 
-  
+  end_date?: string;
+  rating?: number;
   created_at?: string;
 }
 
 export interface Memo {
   id: string;
+  book_id: string;
   content: string;
   created_at: string;
-  page?: number;
 }

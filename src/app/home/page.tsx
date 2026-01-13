@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { LogOut, Plus } from "lucide-react";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion, PanInfo } from "framer-motion";
 
 import BottomNav from "@/components/common/BottomNav";
 import Toast from "@/components/common/Toast";
@@ -20,11 +20,16 @@ const STATUS_LABELS: Record<BookStatus, string> = {
   finished: "읽은 책",
 };
 
+const TAB_ORDER: BookStatus[] = ["reading", "wish", "finished"];
+
 export default function HomePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
   
-  const [activeTab, setActiveTab] = useState<BookStatus>("reading");
+  const initialTab = (searchParams.get("tab") as BookStatus) || "reading";
+  const [activeTab, setActiveTab] = useState<BookStatus>(initialTab);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -37,6 +42,8 @@ export default function HomePage() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
+  
+  const [slideDirection, setSlideDirection] = useState(0);
 
   const addedBookKeys = new Set([
     ...myBooks.reading.map((b) => b.title + b.authors.join("")),
@@ -64,21 +71,14 @@ export default function HomePage() {
 
       data?.forEach((item: any) => {
         if (item.status in newBooks) {
-          newBooks[item.status as BookStatus].push({
-            id: item.id, 
-            title: item.title,
-            authors: item.authors,
-            translators: item.translators,
-            thumbnail: item.thumbnail,
-            publisher: item.publisher,
-            contents: item.contents,
-            isbn: item.isbn,
-            status: item.status,
-            start_date: item.start_date, // 날짜 정보도 미리 가져오기
-            end_date: item.end_date,
-            created_at: item.created_at,
-          });
+          newBooks[item.status as BookStatus].push(item);
         }
+      });
+
+      newBooks.finished.sort((a, b) => {
+        const dateA = new Date(a.end_date || a.created_at || 0).getTime();
+        const dateB = new Date(b.end_date || b.created_at || 0).getTime();
+        return dateB - dateA;
       });
 
       setMyBooks(newBooks);
@@ -93,25 +93,75 @@ export default function HomePage() {
     fetchBooks();
   }, [fetchBooks]);
 
+  // URL 탭 동기화
+  useEffect(() => {
+    const tabFromUrl = (searchParams.get("tab") as BookStatus) || "reading";
+    if (TAB_ORDER.includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [searchParams]);
+
+  // [추가] 삭제 후 돌아왔을 때 토스트 팝업 처리
+  useEffect(() => {
+    const toastType = searchParams.get("toast");
+    
+    if (toastType === "deleted") {
+      setToastMessage("책이 삭제되었습니다");
+      setShowToast(true);
+
+      // URL 파라미터 제거 (새로고침 시 또 뜨지 않게)
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete("toast");
+      window.history.replaceState({}, "", newUrl.toString());
+
+      setTimeout(() => setShowToast(false), 2000);
+    }
+  }, [searchParams]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.replace("/login");
   };
 
+  const handleTabChange = (newTab: BookStatus) => {
+    if (newTab === activeTab) return;
+    
+    const oldIndex = TAB_ORDER.indexOf(activeTab);
+    const newIndex = TAB_ORDER.indexOf(newTab);
+    setSlideDirection(newIndex > oldIndex ? 1 : -1);
+
+    setActiveTab(newTab);
+    router.replace(`/home?tab=${newTab}`);
+  };
+
+  const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const threshold = 50;
+    const currentIndex = TAB_ORDER.indexOf(activeTab);
+
+    if (info.offset.x < -threshold) {
+      if (currentIndex < TAB_ORDER.length - 1) {
+        handleTabChange(TAB_ORDER[currentIndex + 1]);
+      }
+    } else if (info.offset.x > threshold) {
+      if (currentIndex > 0) {
+        handleTabChange(TAB_ORDER[currentIndex - 1]);
+      }
+    }
+  };
+
+  const handleBookClick = (bookId?: string) => {
+    if (bookId) router.push(`/books/${bookId}`);
+  };
+  
   const handleAddBook = async (book: Book, status: BookStatus) => {
     const bookKey = book.title + book.authors.join("");
-
     if (addedBookKeys.has(bookKey)) {
       setShowAlert(true);
       return;
     }
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.replace("/login");
-        return;
-      }
+      if (!user) { router.replace("/login"); return; }
 
       let fetchedTotalPage = 0;
       let fetchedCover = null;
@@ -122,13 +172,10 @@ export default function HomePage() {
           const data = await res.json();
           if (data.page) fetchedTotalPage = data.page;
           if (data.cover) fetchedCover = data.cover;
-        } catch (err) {
-          console.error("알라딘 데이터 조회 실패:", err);
-        }
+        } catch (err) { console.error(err); }
       }
 
       const finalCover = fetchedCover || book.thumbnail;
-
       const { error } = await supabase.from("books").insert({
         user_id: user.id,
         title: book.title,
@@ -143,27 +190,32 @@ export default function HomePage() {
       });
 
       if (error) throw error;
-
       fetchBooks(); 
-      
       setToastMessage(`${STATUS_LABELS[status]}에 추가되었습니다`);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 2000);
-
     } catch (error) {
-      console.error("책 저장 실패:", error);
-      alert("저장 중 오류가 발생했습니다.");
-    }
-  };
-
-  // [수정 포인트 1] 모든 상태에서 상세 페이지 진입 허용
-  const handleBookClick = (bookId?: string) => {
-    if (bookId) {
-      router.push(`/books/${bookId}`);
+      console.error(error);
+      alert("오류 발생");
     }
   };
 
   const currentBooks = myBooks[activeTab];
+
+  const variants = {
+    enter: (direction: number) => ({
+      x: direction > 0 ? 300 : -300,
+      opacity: 0,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+    },
+    exit: (direction: number) => ({
+      x: direction < 0 ? 300 : -300,
+      opacity: 0,
+    }),
+  };
 
   return (
     <div className="fixed inset-0 flex flex-col bg-white overflow-hidden max-w-[430px] mx-auto shadow-2xl">
@@ -174,13 +226,14 @@ export default function HomePage() {
         <LogOut className="w-3 h-3" /> 로그아웃
       </button>
 
-      <header className="flex flex-col items-center w-full pt-8 pb-4 bg-white z-10 shrink-0">
-        <div className="flex gap-6 mb-2">
-          {(["reading", "wish", "finished"] as BookStatus[]).map((tab) => (
+      {/* 헤더 & 탭 */}
+      <header className="flex flex-col items-center w-full pt-8 pb-4 bg-white z-10 shrink-0 select-none">
+        <div className="flex gap-6 mb-2 relative">
+          {TAB_ORDER.map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`text-lg font-bold transition-colors cursor-pointer hover:opacity-70 ${
+              onClick={() => handleTabChange(tab)}
+              className={`text-lg font-bold transition-colors cursor-pointer hover:opacity-70 relative z-10 ${
                 activeTab === tab ? "text-gray-900" : "text-gray-300"
               }`}
             >
@@ -193,54 +246,80 @@ export default function HomePage() {
         </span>
       </header>
 
-      <main 
-        className={`flex-1 w-full px-6 pb-24 overflow-y-auto overscroll-y-auto scrollbar-hide ${
-          isLoading || currentBooks.length === 0 ? "flex flex-col items-center justify-center" : "pt-4"
-        }`}
-        style={{ WebkitOverflowScrolling: 'touch' }}
-      >
-        {isLoading ? (
-          <div className="text-gray-400 text-sm">내 서재를 불러오는 중...</div>
-        ) : currentBooks.length === 0 ? (
-          <div className="text-center">
-            <h2 className="text-lg font-medium text-gray-900 mb-2">첫 책을 기록해볼까요?</h2>
-            <p className="text-sm text-gray-500 leading-relaxed">작은 기록이 쌓여 나만의 독서 여정이 됩니다.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-8 pb-10">
-            {currentBooks.map((book, index) => (
-              // [수정 포인트 2] 모든 아이템에 포인터 커서 적용
-              <div 
-                key={index} 
-                className="flex flex-col transition-opacity cursor-pointer active:opacity-80"
-                onClick={() => handleBookClick(book.id)}
-              >
-                <div className="w-full aspect-[2/3] bg-gray-100 rounded-md mb-3 shadow-sm overflow-hidden border border-gray-100 relative">
-                  {book.thumbnail ? (
-                    <img 
-                      src={book.thumbnail} 
-                      alt={book.title} 
-                      className="w-full h-full object-cover transition-transform hover:scale-105 duration-300"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs bg-gray-50">
-                      No Image
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <h3 className="text-[15px] font-bold text-gray-900 leading-snug line-clamp-2">
-                    {book.title}
-                  </h3>
-                  <p className="text-[12px] text-gray-500 line-clamp-1">
-                    {book.authors.join(", ")}
-                  </p>
-                </div>
+      {/* 메인 컨텐츠 */}
+      <div className="flex-1 w-full relative overflow-hidden bg-white">
+        <AnimatePresence initial={false} custom={slideDirection}>
+          <motion.main
+            key={activeTab}
+            custom={slideDirection}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.2}
+            onDragEnd={handleDragEnd}
+            
+            className={`absolute inset-0 w-full h-full px-6 pb-24 overflow-y-auto overscroll-y-auto scrollbar-hide ${
+              isLoading || currentBooks.length === 0 ? "flex flex-col items-center justify-center" : "pt-4"
+            }`}
+          >
+            {isLoading ? (
+              <div className="text-gray-400 text-sm">내 서재를 불러오는 중...</div>
+            ) : currentBooks.length === 0 ? (
+              <div className="text-center">
+                <h2 className="text-lg font-medium text-gray-900 mb-2">
+                  {activeTab === "finished" ? "다 읽은 책이 없어요" : "첫 책을 기록해볼까요?"}
+                </h2>
+                <p className="text-sm text-gray-500 leading-relaxed">
+                  {activeTab === "finished" ? "독서를 완료하고 기록을 남겨보세요." : "작은 기록이 쌓여 나만의 독서 여정이 됩니다."}
+                </p>
               </div>
-            ))}
-          </div>
-        )}
-      </main>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-8 pb-10">
+                {currentBooks.map((book, index) => (
+                  <div 
+                    key={`${book.id}-${index}`} 
+                    className="flex flex-col transition-opacity cursor-pointer active:opacity-80"
+                    onClick={() => handleBookClick(book.id)}
+                  >
+                    <div className="w-full aspect-[2/3] bg-gray-100 rounded-md mb-3 shadow-sm overflow-hidden border border-gray-100 relative">
+                      {book.thumbnail ? (
+                        <img 
+                          src={book.thumbnail} 
+                          alt={book.title} 
+                          className="w-full h-full object-cover transition-transform hover:scale-105 duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs bg-gray-50">
+                          No Image
+                        </div>
+                      )}
+                      
+                      {activeTab === "finished" && book.rating !== null && book.rating !== undefined && (
+                         <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded backdrop-blur-sm">
+                           ★ {book.rating}
+                         </div>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-[15px] font-bold text-gray-900 leading-snug line-clamp-2">
+                        {book.title}
+                      </h3>
+                      <p className="text-[12px] text-gray-500 line-clamp-1">
+                        {book.authors.join(", ")}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.main>
+        </AnimatePresence>
+      </div>
 
       <div className="absolute bottom-[88px] left-0 w-full flex justify-center pointer-events-none z-20">
         <button 
@@ -253,15 +332,13 @@ export default function HomePage() {
 
       <BottomNav />
 
-      <AnimatePresence>
-        {isModalOpen && (
-          <SearchModal 
-            onClose={() => setIsModalOpen(false)}
-            onAddBook={handleAddBook}
-            addedBooks={addedBookKeys} 
-          />
-        )}
-      </AnimatePresence>
+      {/* [수정] AnimatePresence 제거 & 조건부 렌더링 제거 */}
+      <SearchModal 
+        isOpen={isModalOpen} // [필수] 이제 열림 상태를 직접 전달해야 합니다
+        onClose={() => setIsModalOpen(false)}
+        onAddBook={handleAddBook}
+        addedBooks={addedBookKeys} 
+        />
     </div>
   );
 }
