@@ -57,21 +57,32 @@ export default function SearchModal({ isOpen, onClose, onAddBook, addedBooks }: 
     fetchRecentSearches();
   }, [fetchRecentSearches]);
 
-// 2. 모달 닫힘 감지 및 상태 초기화 (수정 완료)
+  // 2. 모달 닫힘 감지 및 상태 초기화
   useEffect(() => {
     if (!isOpen) {
-      // 애니메이션 시간(약 300ms) 뒤에 조용히 초기화
       const timer = setTimeout(() => {
-        setModalStep("selection"); // [수정] setStep -> setModalStep, "input" -> "selection"
-        setSearchQuery("");        // [수정] setQuery -> setSearchQuery
-        setSearchResults([]);      // [수정] setResults -> setSearchResults
-        setHasSearched(false);     // [추가] 검색 여부도 초기화
-        setIsSearching(false);     // [추가] 로딩 상태도 초기화
+        setModalStep("selection");
+        setSearchQuery("");
+        setSearchResults([]);
+        setHasSearched(false);
+        setIsSearching(false);
       }, 300);
 
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
+
+  // [핵심 추가] 스마트 터치 가드
+  // 내용이 없거나 짧을 때 스크롤을 시도하면 모달 전체가 밀리는 것을 방지합니다.
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation(); // 부모로 이벤트 전파 차단
+    
+    const target = e.currentTarget;
+    // 내용이 충분하지 않아서 스크롤이 안 생기는 경우 -> 브라우저 기본 동작(Body 밀기) 차단
+    if (target.scrollHeight <= target.clientHeight) {
+      e.preventDefault();
+    }
+  };
 
   const saveSearchTerm = async (term: string) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -144,7 +155,6 @@ export default function SearchModal({ isOpen, onClose, onAddBook, addedBooks }: 
           modalStep === 'search' ? 'h-[70dvh]' : 'h-auto'
         }`}
       >
-        {/* [수정] 헤더 패딩 조정: mb-4 -> py-4 (BookSelectModal과 간격 통일) */}
         <div className="relative flex items-center justify-center py-4 px-6 shrink-0">
           {modalStep === "search" && (
             <button 
@@ -165,6 +175,8 @@ export default function SearchModal({ isOpen, onClose, onAddBook, addedBooks }: 
             overscrollBehavior: 'contain',
             WebkitOverflowScrolling: 'touch'
           }}
+          // [핵심 연결] 여기서 가드 함수 실행
+          onTouchMove={handleTouchMove}
         >
           {/* 1. 상태 선택 화면 */}
           {modalStep === "selection" && (
@@ -247,7 +259,6 @@ export default function SearchModal({ isOpen, onClose, onAddBook, addedBooks }: 
         </div>
       </BottomSheet>
 
-      {/* 책 상세 팝업 (이중 모달) */}
       {selectedBook && (
         <BookDetailModal 
           book={selectedBook}

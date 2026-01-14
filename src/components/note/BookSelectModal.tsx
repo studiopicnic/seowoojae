@@ -63,6 +63,18 @@ export default function BookSelectModal({
     }
   }, [isOpen, initialBook, isEditMode, initialContent]);
 
+  // [핵심 추가] 스마트 터치 가드
+  // 내용이 없거나 짧을 때 스크롤을 시도하면 모달 전체가 밀리는 것을 방지합니다.
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation(); // 부모로 이벤트 전파 차단
+    
+    const target = e.currentTarget;
+    // 내용이 충분하지 않아서 스크롤이 안 생기는 경우 -> 브라우저 기본 동작(Body 밀기) 차단
+    if (target.scrollHeight <= target.clientHeight) {
+      e.preventDefault();
+    }
+  };
+
   const fetchMyBooks = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -140,19 +152,19 @@ export default function BookSelectModal({
         onRightClick={step === "writing" ? (canSave ? handleSave : undefined) : onClose}
       />
 
-      {/* [핵심 수정] 내부 콘텐츠 영역에 스크롤 및 터치 동작 허용 */}
+      {/* 내부 콘텐츠 영역 */}
       <div 
         className="flex-1 overflow-y-auto px-6 pb-8"
         style={{ 
-          // 1. 부모(BottomSheet)에서 막아둔 터치 액션을 여기서 다시 허용합니다. (pan-y: 위아래 스크롤 허용)
+          // 1. 부모(BottomSheet)에서 막아둔 터치 액션을 여기서 다시 허용합니다.
           touchAction: 'pan-y', 
-          // 2. 스크롤이 끝에 닿았을 때 부모(화면 전체)로 체이닝되는 것을 막습니다. (고무줄 효과 방지)
+          // 2. 스크롤이 끝에 닿았을 때 부모(화면 전체)로 체이닝되는 것을 막습니다.
           overscrollBehavior: 'contain',
           // 3. iOS 부드러운 스크롤 적용
           WebkitOverflowScrolling: 'touch'
         }}
-        // 추가: 확실한 이벤트 전파 방지
-        onTouchMove={(e) => e.stopPropagation()}
+        // [핵심 연결] 스마트 터치 가드 적용
+        onTouchMove={handleTouchMove}
       >
         {!isEditMode && step === "selection" && (
           <div className="flex flex-col h-full">
@@ -221,7 +233,7 @@ export default function BookSelectModal({
               value={content}
               onChange={(e) => setContent(e.target.value)}
               autoFocus
-              // 텍스트 영역도 터치 액션 허용 (명시적)
+              // 텍스트 영역도 터치 액션 허용
               style={{ touchAction: 'pan-y' }}
             />
           </div>
