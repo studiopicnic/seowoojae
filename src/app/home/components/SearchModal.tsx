@@ -7,6 +7,7 @@ import { Book } from "@/types/book";
 
 // [공통 컴포넌트]
 import BottomSheet from "@/components/common/BottomSheet";
+import SafeScrollArea from "@/components/common/SafeScrollArea"; // [추가]
 import BookDetailModal from "./BookDetailModal";
 
 type BookStatus = "reading" | "wish" | "finished";
@@ -57,7 +58,7 @@ export default function SearchModal({ isOpen, onClose, onAddBook, addedBooks }: 
     fetchRecentSearches();
   }, [fetchRecentSearches]);
 
-  // 2. 모달 닫힘 감지 및 상태 초기화
+  // 모달 닫힘 감지 및 상태 초기화 (키보드 레이아웃 깨짐 방지용)
   useEffect(() => {
     if (!isOpen) {
       const timer = setTimeout(() => {
@@ -71,18 +72,6 @@ export default function SearchModal({ isOpen, onClose, onAddBook, addedBooks }: 
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
-
-  // [핵심 추가] 스마트 터치 가드
-  // 내용이 없거나 짧을 때 스크롤을 시도하면 모달 전체가 밀리는 것을 방지합니다.
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    e.stopPropagation(); // 부모로 이벤트 전파 차단
-    
-    const target = e.currentTarget;
-    // 내용이 충분하지 않아서 스크롤이 안 생기는 경우 -> 브라우저 기본 동작(Body 밀기) 차단
-    if (target.scrollHeight <= target.clientHeight) {
-      e.preventDefault();
-    }
-  };
 
   const saveSearchTerm = async (term: string) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -155,6 +144,7 @@ export default function SearchModal({ isOpen, onClose, onAddBook, addedBooks }: 
           modalStep === 'search' ? 'h-[70dvh]' : 'h-auto'
         }`}
       >
+        {/* 헤더 */}
         <div className="relative flex items-center justify-center py-4 px-6 shrink-0">
           {modalStep === "search" && (
             <button 
@@ -167,17 +157,9 @@ export default function SearchModal({ isOpen, onClose, onAddBook, addedBooks }: 
           <h3 className="text-lg font-bold text-gray-900">추가하기</h3>
         </div>
 
-        {/* 컨텐츠 영역 */}
-        <div 
-          className="px-6 pb-8 overflow-y-auto flex-1 min-h-0 scrollbar-hide"
-          style={{ 
-            touchAction: 'pan-y', 
-            overscrollBehavior: 'contain',
-            WebkitOverflowScrolling: 'touch'
-          }}
-          // [핵심 연결] 여기서 가드 함수 실행
-          onTouchMove={handleTouchMove}
-        >
+        {/* [교체 완료] SafeScrollArea: 스크롤 방어 및 1px 트릭 적용됨 */}
+        <SafeScrollArea className="px-6 pb-8">
+          
           {/* 1. 상태 선택 화면 */}
           {modalStep === "selection" && (
             <div className="space-y-3 pb-8">
@@ -256,7 +238,8 @@ export default function SearchModal({ isOpen, onClose, onAddBook, addedBooks }: 
               </div>
             </div>
           )}
-        </div>
+
+        </SafeScrollArea>
       </BottomSheet>
 
       {selectedBook && (
