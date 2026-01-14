@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, ReactNode } from "react";
+import { ReactNode } from "react";
 import { motion, AnimatePresence, PanInfo } from "framer-motion";
 
 interface BottomSheetProps {
@@ -17,40 +17,8 @@ export default function BottomSheet({
   className = "",
 }: BottomSheetProps) {
 
-  // 1. Body Scroll Lock (기본 문서 스크롤 방지)
-useEffect(() => {
-    if (isOpen) {
-      const scrollY = window.scrollY;
-      
-      // 1. Body 고정 (기존 로직)
-      document.body.style.position = "fixed";
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = "100%";
-      document.body.style.overflow = "hidden";
-      
-      // [추가] 2. 오버스크롤(고무줄 효과) 원천 차단
-      // html과 body 모두에 적용해야 완벽합니다.
-      document.body.style.overscrollBehavior = "none";
-      document.documentElement.style.overscrollBehavior = "none"; // html 태그
-      
-    }
-
-    return () => {
-      const scrollY = document.body.style.top;
-      
-      // 스타일 복구
-      document.body.style.position = "";
-      document.body.style.top = "";
-      document.body.style.width = "";
-      document.body.style.overflow = "";
-      
-      // [해제] 오버스크롤 복구
-      document.body.style.overscrollBehavior = "";
-      document.documentElement.style.overscrollBehavior = "";
-
-      window.scrollTo(0, parseInt(scrollY || "0") * -1);
-    };
-  }, [isOpen]);
+  // [중요] 기존의 Body Scroll Lock (useEffect) 코드를 모두 제거했습니다.
+  // layout.tsx의 interactive-widget 설정과 충돌하기 때문입니다.
 
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.y > 100) {
@@ -63,24 +31,26 @@ useEffect(() => {
       {isOpen && (
         <div className="fixed inset-0 z-[60] flex justify-center items-end">
           
-          {/* 배경 (Backdrop) */}
+          {/* 1. 배경 (Backdrop) */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
             
-            // [핵심 추가] 배경 터치 시 화면 이동(Pan) 원천 차단
-            // iOS Safari에서 키보드가 올라왔을 때 배경을 끌면 화면이 날아가는 것을 막습니다.
+            // [핵심 1] 배경 터치 원천 봉쇄
+            // CSS: 터치 액션 자체를 끔
+            style={{ touchAction: "none" }}
+            // JS: 혹시라도 발생하는 터치 이동 이벤트를 무효화
             onTouchMove={(e) => {
-              e.preventDefault(); // "움직이지 마"
-              e.stopPropagation(); // "부모에게 알리지 마"
+              e.preventDefault();
+              e.stopPropagation();
             }}
             
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
 
-          {/* 바텀시트 본체 */}
+          {/* 2. 바텀시트 프레임 */}
           <motion.div
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
@@ -91,9 +61,13 @@ useEffect(() => {
             dragElastic={0.05}
             onDragEnd={handleDragEnd}
             
-            // 모달 본체는 터치 이벤트를 막지 않았으므로(위의 onTouchMove는 형제 요소인 배경에만 적용됨),
-            // 내부 텍스트 입력이나 스크롤은 정상 작동합니다.
-            style={{ maxHeight: "90dvh" }}
+            // [핵심 2] 모달 껍데기 고정
+            // 모달 내부의 스크롤 영역(children)을 제외한 
+            // 헤더나 빈 공간을 당겼을 때 화면이 움직이는 것을 방지합니다.
+            style={{ 
+              maxHeight: "90dvh",
+              touchAction: "none" 
+            }}
             
             className={`relative w-full max-w-[430px] bg-white rounded-t-[20px] shadow-2xl overflow-hidden flex flex-col ${className}`}
           >
@@ -103,6 +77,10 @@ useEffect(() => {
             </div>
 
             {/* 컨텐츠 영역 */}
+            {/* 내용물 스크롤은 여기서 처리하지 않고, 
+              SearchModal 등 자식 컴포넌트 내부의 'overflow-y-auto' 영역에서 
+              'overscroll-behavior: contain'과 함께 처리됩니다. (이미 적용되어 있음)
+            */}
             {children}
           </motion.div>
         </div>
