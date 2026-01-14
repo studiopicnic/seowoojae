@@ -17,21 +17,29 @@ export default function BottomSheet({
   className = "",
 }: BottomSheetProps) {
   
-  // [수정] 초기값을 100dvh로 설정
-  const [viewportHeight, setViewportHeight] = useState<string | number>("100dvh");
+  // 화면의 높이와 위치 정보를 저장할 state
+  const [viewportStyle, setViewportStyle] = useState({
+    height: "100%", // 기본값
+    top: 0,         // 기본값
+  });
 
   useEffect(() => {
     if (!isOpen) return;
 
     const handleResize = () => {
+      // VisualViewport API 지원 브라우저 (대부분의 모바일)
       if (window.visualViewport) {
-        // [핵심 로직]
-        // 키보드가 올라오면 visualViewport.height가 작아집니다 (예: 800px -> 450px).
-        // 이 값을 컨테이너 높이로 설정하면, 컨테이너의 '바닥'이 키보드 바로 위가 됩니다.
-        setViewportHeight(window.visualViewport.height);
+        setViewportStyle({
+          // 1. 높이: 키보드를 뺀 실제 보이는 높이 (px)
+          height: `${window.visualViewport.height}px`,
+          // 2. 위치: 화면이 스크롤되어 밀려난 만큼 보정 (px)
+          // 이게 없으면 모달이 화면 위로 날아갑니다.
+          top: window.visualViewport.offsetTop, 
+        });
       }
     };
 
+    // 키보드가 올라오거나 스크롤될 때마다 위치/크기 재계산
     window.visualViewport?.addEventListener("resize", handleResize);
     window.visualViewport?.addEventListener("scroll", handleResize);
     
@@ -54,12 +62,13 @@ export default function BottomSheet({
     <AnimatePresence>
       {isOpen && (
         <div 
-          className="fixed left-0 top-0 w-full z-[60] flex justify-center items-end"
-          // [핵심 수정] 
-          // 1. inset-0 대신 top-0, left-0, w-full을 쓰고
-          // 2. 높이(height)를 자바스크립트로 강제 제어합니다.
-          // -> 결과: 키보드가 올라오면 이 div 자체가 작아지면서, 내부의 모달(items-end)을 위로 끌어올립니다.
-          style={{ height: viewportHeight }}
+          className="fixed left-0 w-full z-[60] flex justify-center items-end"
+          // [핵심] 높이와 Top 위치를 자바스크립트가 픽셀 단위로 통제합니다.
+          // 결과적으로 이 div는 항상 "눈에 보이는 화면 전체"와 일치하게 됩니다.
+          style={{ 
+            height: viewportStyle.height,
+            top: viewportStyle.top 
+          }}
         >
           
           {/* 배경 (Backdrop) */}
@@ -82,9 +91,10 @@ export default function BottomSheet({
             dragElastic={0.05}
             onDragEnd={handleDragEnd}
             
-            // 모달 본체는 "부모 높이(줄어든 화면)의 최대 90%"까지만 차지하게 합니다.
-            // 이렇게 하면 키보드 공간을 제외한 나머지 영역 내에서 적절히 크기를 잡습니다.
-            className={`relative w-full max-w-[430px] max-h-[90%] bg-white rounded-t-[20px] shadow-2xl overflow-hidden flex flex-col ${className}`}
+            // 모달 본체: 
+            // 부모(보이는 화면)가 줄어들면, 얘도 같이 줄어듭니다.
+            // max-h-full을 줘서 키보드 공간을 제외한 영역을 넘치지 않게 합니다.
+            className={`relative w-full max-w-[430px] max-h-full bg-white rounded-t-[20px] shadow-2xl overflow-hidden flex flex-col ${className}`}
           >
             {/* 드래그 핸들 */}
             <div className="w-full flex justify-center pt-3 pb-1 shrink-0 cursor-grab active:cursor-grabbing">
@@ -92,6 +102,7 @@ export default function BottomSheet({
             </div>
 
             {/* 컨텐츠 영역 */}
+            {/* 내용이 많으면 이 내부에서 스크롤이 생기도록 flex 구조를 잡아야 합니다 */}
             {children}
           </motion.div>
         </div>
