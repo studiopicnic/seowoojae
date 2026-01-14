@@ -41,7 +41,6 @@ export default function BookSelectModal({
   const [content, setContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  // [추가] 저장 가능 상태 여부 (내용이 있고, 저장 중이 아닐 때)
   const canSave = content.trim().length > 0 && !isSaving;
 
   useEffect(() => {
@@ -85,9 +84,7 @@ export default function BookSelectModal({
   };
 
   const handleSave = async () => {
-    // [보안] 한 번 더 체크 (내용 없으면 함수 종료)
     if (!canSave) return;
-    
     setIsSaving(true);
 
     try {
@@ -98,16 +95,11 @@ export default function BookSelectModal({
       if (isEditMode && noteId) {
         const { error } = await supabase
           .from("memos")
-          .update({ 
-            content: content,
-            updated_at: now
-          }) 
+          .update({ content: content, updated_at: now }) 
           .eq("id", noteId);
-        
         if (error) throw error;
       } else {
         if (!selectedBook) return;
-        
         const { error } = await supabase
           .from("memos")
           .insert({
@@ -116,16 +108,14 @@ export default function BookSelectModal({
             content: content,
             updated_at: now
           });
-
         if (error) throw error;
       }
 
       onSaveComplete();
       onClose();
       setContent("");
-      
     } catch (error: any) {
-      console.error("저장 실패 상세:", error.message || error);
+      console.error("저장 실패:", error.message || error);
       alert("저장에 실패했습니다.");
     } finally {
       setIsSaving(false);
@@ -142,27 +132,28 @@ export default function BookSelectModal({
         title={isEditMode ? "노트 수정" : (step === "selection" ? "책 선택하기" : "기록하기")}
         leftIcon={step === "writing" && !isEditMode && !initialBook ? <ChevronLeft className="w-6 h-6" /> : null}
         onLeftClick={() => setStep("selection")}
-        
-        // [수정] 아이콘 로직 변경
-        // 1. step이 writing이 아니면 X (닫기)
-        // 2. step이 writing이면 Check (저장)
-        //    - canSave(내용있음) ? 검은색 : 회색
         rightIcon={
             step === "writing" 
             ? <Check className={`w-6 h-6 transition-colors ${canSave ? 'text-black' : 'text-gray-300'}`} /> 
             : <X className="w-6 h-6" />
         }
-        
-        // [수정] 클릭 이벤트 로직 변경
-        // 내용이 없으면(canSave가 false면) 클릭해도 handleSave가 실행되지 않음 (undefined 전달)
-        onRightClick={
-          step === "writing" 
-            ? (canSave ? handleSave : undefined) 
-            : onClose
-        }
+        onRightClick={step === "writing" ? (canSave ? handleSave : undefined) : onClose}
       />
 
-      <div className="flex-1 overflow-y-auto px-6 pb-8">
+      {/* [핵심 수정] 내부 콘텐츠 영역에 스크롤 및 터치 동작 허용 */}
+      <div 
+        className="flex-1 overflow-y-auto px-6 pb-8"
+        style={{ 
+          // 1. 부모(BottomSheet)에서 막아둔 터치 액션을 여기서 다시 허용합니다. (pan-y: 위아래 스크롤 허용)
+          touchAction: 'pan-y', 
+          // 2. 스크롤이 끝에 닿았을 때 부모(화면 전체)로 체이닝되는 것을 막습니다. (고무줄 효과 방지)
+          overscrollBehavior: 'contain',
+          // 3. iOS 부드러운 스크롤 적용
+          WebkitOverflowScrolling: 'touch'
+        }}
+        // 추가: 확실한 이벤트 전파 방지
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         {!isEditMode && step === "selection" && (
           <div className="flex flex-col h-full">
             <div className="flex border-b border-gray-100 mb-4">
@@ -173,9 +164,7 @@ export default function BookSelectModal({
                 }`}
               >
                 읽고 있는 책
-                {activeTab === "reading" && (
-                  <div className="absolute bottom-0 left-0 w-full h-[2px] bg-black" />
-                )}
+                {activeTab === "reading" && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-black" />}
               </button>
               <button
                 onClick={() => setActiveTab("finished")}
@@ -184,9 +173,7 @@ export default function BookSelectModal({
                 }`}
               >
                 읽은 책
-                {activeTab === "finished" && (
-                  <div className="absolute bottom-0 left-0 w-full h-[2px] bg-black" />
-                )}
+                {activeTab === "finished" && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-black" />}
               </button>
             </div>
 
@@ -234,6 +221,8 @@ export default function BookSelectModal({
               value={content}
               onChange={(e) => setContent(e.target.value)}
               autoFocus
+              // 텍스트 영역도 터치 액션 허용 (명시적)
+              style={{ touchAction: 'pan-y' }}
             />
           </div>
         )}
