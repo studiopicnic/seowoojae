@@ -22,10 +22,10 @@ export default function BottomNav() {
       </Link>
 
       {/* 2. 노트(기록) 탭 - 여기를 눌러야 이동합니다! */}
-      <Link href="/record" className="p-4 active:scale-95 transition-transform">
+      <Link href="/note" className="p-4 active:scale-95 transition-transform">
         <Edit 
           className={`w-6 h-6 transition-colors ${
-            isActive("/record") ? "text-black fill-black" : "text-gray-300"
+            isActive("/note") ? "text-black fill-black" : "text-gray-300"
           }`} 
         />
       </Link>

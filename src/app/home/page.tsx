@@ -9,7 +9,7 @@ import { AnimatePresence, motion, PanInfo } from "framer-motion";
 import BottomNav from "@/components/common/BottomNav";
 import Toast from "@/components/common/Toast";
 import AlertModal from "@/components/common/AlertModal";
-import SearchModal from "./components/SearchModal";
+import SearchModal from "@/components/home/SearchModal";
 import { Book } from "@/types/book";
 
 type BookStatus = "reading" | "wish" | "finished";

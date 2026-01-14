@@ -29,12 +29,10 @@ export default function NoteDetailPage() {
   const [note, setNote] = useState<NoteDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // UI 상태
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const fetchNote = useCallback(async () => {
@@ -51,7 +49,7 @@ export default function NoteDetailPage() {
 
     if (error) {
       console.error(error);
-      router.replace("/record");
+      router.replace("/note");
       return;
     }
 
@@ -67,7 +65,7 @@ export default function NoteDetailPage() {
     if (!note) return;
     const { error } = await supabase.from("memos").delete().eq("id", note.id);
     if (error) { alert("삭제 실패"); return; }
-    router.replace("/record?toast=deleted");
+    router.replace("/note?toast=deleted");
   };
 
   const handleEdit = () => {
@@ -82,30 +80,26 @@ export default function NoteDetailPage() {
     setTimeout(() => setShowToast(false), 2000);
   };
 
-  if (isLoading) return <div className="min-h-screen bg-white" />;
+  if (isLoading) return <div className="fixed inset-0 bg-white" />;
   if (!note) return null;
 
   return (
-    // [유지] App Shell 구조: fixed inset-0
     <div className="fixed inset-0 flex flex-col bg-white max-w-[430px] mx-auto shadow-2xl overflow-hidden">
       <Toast isVisible={showToast} message={toastMessage} />
 
-      {/* 1. 메뉴 (OverlayModal) */}
       <OverlayModal isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)}>
         <div className="flex flex-col gap-3">
           <button onClick={handleEdit} className="w-full h-[56px] flex items-center justify-between px-5 bg-[#333333] rounded-xl active:scale-[0.98] transition-transform">
             <span className="text-[16px] font-bold text-white">노트 수정</span>
             <Pencil className="w-5 h-5 text-white/70" />
           </button>
-          
-          <button onClick={() => { setIsMenuOpen(false); setIsDeleteConfirmOpen(true); }} className="w-full h-[56px] flex items-center justify-between px-5 bg-[#333333] rounded-xl active:scale-[0.98] transition-transform hover:bg-[#443333]">
+          <button onClick={() => { setIsMenuOpen(false); setIsDeleteConfirmOpen(true); }} className="w-full h-[56px] flex items-center justify-between px-5 bg-[#333333] rounded-xl active:scale-[0.98] transition-transform">
             <span className="text-[16px] font-bold text-white">노트 삭제</span>
             <Trash2 className="w-5 h-5 text-white/70" />
           </button>
         </div>
       </OverlayModal>
 
-      {/* 2. 삭제 확인 모달 */}
       <ConfirmModal 
         isOpen={isDeleteConfirmOpen}
         onClose={() => setIsDeleteConfirmOpen(false)}
@@ -117,7 +111,6 @@ export default function NoteDetailPage() {
         isDanger={true}
       />
 
-      {/* 3. 수정 모달 */}
       <BookSelectModal 
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
@@ -128,8 +121,7 @@ export default function NoteDetailPage() {
         initialBook={note.books as any} 
       />
 
-      {/* 4. 헤더 영역: shrink-0 및 z-index 격리 */}
-      <div className="shrink-0 z-10 bg-white">
+      <div className="shrink-0 z-50 bg-white">
         <CommonHeader 
           leftIcon={<ChevronLeft className="w-6 h-6" />}
           onLeftClick={() => router.back()}
@@ -138,19 +130,24 @@ export default function NoteDetailPage() {
         />
       </div>
 
-      {/* 5. 메인 컨텐츠 영역: absolute inset-0 구조로 스크롤 경험 통일 */}
       <div className="flex-1 w-full relative overflow-hidden bg-white">
-        <main className="absolute inset-0 w-full h-full px-6 pb-12 overflow-y-auto overscroll-y-auto scrollbar-hide">
-          <div className="mt-4 mb-8 text-center">
+        {/* [수정] main 영역 구조 변경 */}
+        <main className="absolute inset-0 w-full h-full px-8 overflow-y-auto overscroll-y-auto scrollbar-hide flex flex-col">
+          
+          {/* 1. 책 제목: 기존 위치(상단) 유지 */}
+          <div className="mt-4 mb-4 text-center shrink-0">
             <span className="text-[14px] text-gray-400 font-medium">
               {note.books?.title}
             </span>
           </div>
-          <div className="flex flex-col items-center pb-20">
-            <p className="text-[16px] text-gray-900 leading-loose whitespace-pre-wrap text-left w-full">
+
+          {/* 2. 본문 내용: 남은 공간(flex-1)을 채우고 내부에서 세로 중앙 정렬 */}
+          <div className="flex-1 flex flex-col justify-center pb-20">
+            <p className="text-[17px] text-gray-900 leading-[1.8] whitespace-pre-wrap text-left w-full">
               {note.content}
             </p>
           </div>
+          
         </main>
       </div>
     </div>

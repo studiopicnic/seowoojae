@@ -5,9 +5,8 @@ import { X, ChevronLeft, Check } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { Book } from "@/types/book";
 
-// 공통 컴포넌트
 import BottomSheet from "@/components/common/BottomSheet";
-import SafeScrollArea from "@/components/common/SafeScrollArea"; // [추가]
+import SafeScrollArea from "@/components/common/SafeScrollArea";
 import CommonHeader from "@/components/common/CommonHeader";
 
 interface BookSelectModalProps {
@@ -34,9 +33,7 @@ export default function BookSelectModal({
   const [step, setStep] = useState<"selection" | "writing">("selection");
   const [myBooks, setMyBooks] = useState<Book[]>([]);
   const [activeTab, setActiveTab] = useState<"reading" | "finished">("reading");
-
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
-  
   const [content, setContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -139,32 +136,34 @@ export default function BookSelectModal({
         onRightClick={step === "writing" ? (canSave ? handleSave : undefined) : onClose}
       />
 
-      {/* [교체 완료] SafeScrollArea: 스크롤 방어 및 1px 트릭 적용됨 */}
-      <SafeScrollArea className="px-6 pb-8">
-        {!isEditMode && step === "selection" && (
-          <div className="flex flex-col h-full">
-            <div className="flex border-b border-gray-100 mb-4">
-              <button
-                onClick={() => setActiveTab("reading")}
-                className={`flex-1 py-3 text-[14px] font-medium transition-colors relative ${
-                  activeTab === "reading" ? "text-gray-900 font-bold" : "text-gray-400"
-                }`}
-              >
-                읽고 있는 책
-                {activeTab === "reading" && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-black" />}
-              </button>
-              <button
-                onClick={() => setActiveTab("finished")}
-                className={`flex-1 py-3 text-[14px] font-medium transition-colors relative ${
-                  activeTab === "finished" ? "text-gray-900 font-bold" : "text-gray-400"
-                }`}
-              >
-                읽은 책
-                {activeTab === "finished" && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-black" />}
-              </button>
-            </div>
+      {/* [해결] 탭 고정 및 스크롤 영역 분리 */}
+      {!isEditMode && step === "selection" ? (
+        <div className="flex flex-col h-full overflow-hidden">
+          {/* 1. 카테고리 탭: SafeScrollArea 밖으로 빼서 고정 */}
+          <div className="flex border-b border-gray-100 shrink-0 px-6 bg-white">
+            <button
+              onClick={() => setActiveTab("reading")}
+              className={`flex-1 py-4 text-[14px] font-medium transition-colors relative ${
+                activeTab === "reading" ? "text-gray-900 font-bold" : "text-gray-400"
+              }`}
+            >
+              읽고 있는 책
+              {activeTab === "reading" && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-black" />}
+            </button>
+            <button
+              onClick={() => setActiveTab("finished")}
+              className={`flex-1 py-4 text-[14px] font-medium transition-colors relative ${
+                activeTab === "finished" ? "text-gray-900 font-bold" : "text-gray-400"
+              }`}
+            >
+              읽은 책
+              {activeTab === "finished" && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-black" />}
+            </button>
+          </div>
 
-            <div className="flex flex-col gap-2">
+          {/* 2. 리스트: SafeScrollArea로 독립 스크롤 */}
+          <SafeScrollArea className="flex-1 px-6 pb-12">
+            <div className="flex flex-col gap-2 pt-4">
               {filteredBooks.length === 0 ? (
                 <div className="py-20 text-center text-gray-400 text-sm">
                   {activeTab === "reading" ? "읽고 있는 책이 없습니다." : "다 읽은 책이 없습니다."}
@@ -174,7 +173,7 @@ export default function BookSelectModal({
                   <div 
                     key={book.id} 
                     onClick={() => handleBookSelect(book)} 
-                    className="flex gap-4 p-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+                    className="flex gap-4 p-2 active:bg-gray-50 rounded-lg cursor-pointer transition-colors"
                   >
                      <div className="w-[50px] h-[72px] bg-gray-200 rounded shrink-0 overflow-hidden border border-gray-100">
                         {book.thumbnail ? (
@@ -191,29 +190,29 @@ export default function BookSelectModal({
                 ))
               )}
             </div>
-          </div>
-        )}
-
-        {step === "writing" && (
-          <div className="flex flex-col h-full pt-2">
-            <div className="text-center mb-6">
-               <span className="text-[14px] text-gray-400">
-                 {selectedBook?.title}
-               </span>
+          </SafeScrollArea>
+        </div>
+      ) : (
+        /* Writing 단계: 전체가 스크롤 영역 */
+        <SafeScrollArea className="px-6 pb-8">
+          <div className="flex flex-col min-h-full pt-2">
+            <div className="text-center mb-6 shrink-0">
+                <span className="text-[14px] text-gray-400">
+                  {selectedBook?.title}
+                </span>
             </div>
 
             <textarea
-              className="flex-1 w-full text-[16px] leading-relaxed text-gray-900 resize-none outline-none placeholder:text-gray-300"
+              className="flex-1 w-full text-[16px] leading-relaxed text-gray-900 resize-none outline-none placeholder:text-gray-300 min-h-[300px]"
               placeholder="자유롭게 남겨보세요"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               autoFocus
-              // textarea도 이제 부모의 1px 트릭 덕분에 안전하지만, 명시적으로 넣어두면 좋습니다.
               style={{ touchAction: 'pan-y' }}
             />
           </div>
-        )}
-      </SafeScrollArea>
+        </SafeScrollArea>
+      )}
     </BottomSheet>
   );
 }
