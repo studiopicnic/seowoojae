@@ -57,6 +57,22 @@ export default function SearchModal({ isOpen, onClose, onAddBook, addedBooks }: 
     fetchRecentSearches();
   }, [fetchRecentSearches]);
 
+// 2. 모달 닫힘 감지 및 상태 초기화 (수정 완료)
+  useEffect(() => {
+    if (!isOpen) {
+      // 애니메이션 시간(약 300ms) 뒤에 조용히 초기화
+      const timer = setTimeout(() => {
+        setModalStep("selection"); // [수정] setStep -> setModalStep, "input" -> "selection"
+        setSearchQuery("");        // [수정] setQuery -> setSearchQuery
+        setSearchResults([]);      // [수정] setResults -> setSearchResults
+        setHasSearched(false);     // [추가] 검색 여부도 초기화
+        setIsSearching(false);     // [추가] 로딩 상태도 초기화
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
   const saveSearchTerm = async (term: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;

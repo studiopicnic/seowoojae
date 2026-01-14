@@ -18,21 +18,36 @@ export default function BottomSheet({
 }: BottomSheetProps) {
 
   // 1. Body Scroll Lock (기본 문서 스크롤 방지)
-  useEffect(() => {
+useEffect(() => {
     if (isOpen) {
       const scrollY = window.scrollY;
+      
+      // 1. Body 고정 (기존 로직)
       document.body.style.position = "fixed";
       document.body.style.top = `-${scrollY}px`;
       document.body.style.width = "100%";
       document.body.style.overflow = "hidden";
+      
+      // [추가] 2. 오버스크롤(고무줄 효과) 원천 차단
+      // html과 body 모두에 적용해야 완벽합니다.
+      document.body.style.overscrollBehavior = "none";
+      document.documentElement.style.overscrollBehavior = "none"; // html 태그
+      
     }
 
     return () => {
       const scrollY = document.body.style.top;
+      
+      // 스타일 복구
       document.body.style.position = "";
       document.body.style.top = "";
       document.body.style.width = "";
       document.body.style.overflow = "";
+      
+      // [해제] 오버스크롤 복구
+      document.body.style.overscrollBehavior = "";
+      document.documentElement.style.overscrollBehavior = "";
+
       window.scrollTo(0, parseInt(scrollY || "0") * -1);
     };
   }, [isOpen]);
