@@ -4,12 +4,19 @@ import { ReactNode } from "react";
 
 interface CommonHeaderProps {
   title?: string;
+  
+  // 아이콘 및 클릭 이벤트
   leftIcon?: ReactNode;
   onLeftClick?: () => void;
   rightIcon?: ReactNode;
   onRightClick?: () => void;
-  variant?: "default" | "transparent";
-  align?: "center" | "left"; // [추가] 정렬 옵션 (기본값: center)
+  
+  // [레이아웃 타입] default: 모달용(중앙) / tab: 메인탭용(좌측, 24px)
+  type?: "default" | "tab";
+  
+  // [색상 테마] default: 흰배경+검은글씨 / transparent: 투명배경+흰글씨 (오버레이용)
+  variant?: "default" | "transparent"; 
+  
   className?: string;
 }
 
@@ -19,36 +26,30 @@ export default function CommonHeader({
   onLeftClick,
   rightIcon,
   onRightClick,
-  variant = "default",
-  align = "center", // 기본값은 중앙 정렬
+  type = "default",      // 기본 레이아웃: 모달형
+  variant = "default",   // 기본 테마: 흰 배경
   className = "",
 }: CommonHeaderProps) {
+  
+  const isTab = type === "tab";
   const isTransparent = variant === "transparent";
-  const baseTextColor = isTransparent ? "text-white" : "text-gray-900";
-  const hoverBgColor = isTransparent ? "hover:bg-white/10" : "hover:bg-gray-100";
 
-  // 정렬 모드에 따른 텍스트 클래스 설정
-  // left 모드일 때는 폰트를 조금 더 키워줍니다 (20px). center는 17px 유지.
-  const titleClass = align === "left" 
-    ? "text-left text-[20px] pl-2" 
-    : "text-center text-[17px]";
+  // 색상 클래스 결정
+  const baseTextColor = isTransparent ? "text-white" : "text-gray-900";
+  const bgColor = isTransparent ? "bg-transparent" : "bg-white";
+  const iconHoverBg = isTransparent ? "active:bg-white/20" : "active:bg-gray-100";
 
   return (
-    <header 
-      className={`flex-none flex items-center justify-between px-4 py-3 z-10 relative transition-colors ${className} ${
-        !isTransparent ? 'bg-white border-b border-transparent' : ''
-      }`}
+    <header
+      className={`relative flex items-center justify-between px-4 py-3 shrink-0 z-10 transition-colors ${bgColor} ${className}`}
     >
-      {/* [수정 핵심] 
-        align이 'center'일 때는 좌측 아이콘이 없어도 밸런스를 위해 빈 공간(w-10)을 유지하지만,
-        align이 'left'이고 아이콘이 없을 때는 빈 공간을 아예 없애서 텍스트를 앞으로 당깁니다.
-      */}
-      {(align === "center" || leftIcon) && (
-        <div className="w-10 flex justify-start">
+      {/* 1. 좌측 영역 */}
+      {(type === "default" || leftIcon) && (
+        <div className={`flex justify-start ${isTab ? "mr-2" : "w-10"}`}>
           {leftIcon && (
             <button
               onClick={onLeftClick}
-              className={`p-2 -ml-2 rounded-full transition-colors ${baseTextColor} ${hoverBgColor}`}
+              className={`p-1 -ml-1 rounded-full transition-colors ${baseTextColor} ${iconHoverBg}`}
             >
               {leftIcon}
             </button>
@@ -56,17 +57,23 @@ export default function CommonHeader({
         </div>
       )}
 
-      {/* 중앙(혹은 좌측) 타이틀 */}
-      <h1 className={`flex-1 font-bold truncate ${baseTextColor} ${titleClass}`}>
-        {title || ""}
+      {/* 2. 타이틀 영역 */}
+      <h1
+        className={`font-bold truncate ${baseTextColor} ${
+          isTab 
+            ? "flex-1 text-left text-[24px]" // Tab: 24px, 좌측
+            : "text-center text-[17px] absolute left-1/2 -translate-x-1/2 max-w-[60%]" // Default: 17px, 중앙
+        }`}
+      >
+        {title}
       </h1>
 
-      {/* 우측 영역 (40px 공간 확보) */}
-      <div className="w-10 flex justify-end">
+      {/* 3. 우측 영역 */}
+      <div className={`flex justify-end ${isTab ? "" : "w-10"}`}>
         {rightIcon && (
           <button
             onClick={onRightClick}
-            className={`p-2 -mr-2 rounded-full transition-colors ${baseTextColor} ${hoverBgColor}`}
+            className={`p-1 -mr-1 rounded-full transition-colors ${baseTextColor} ${iconHoverBg}`}
           >
             {rightIcon}
           </button>

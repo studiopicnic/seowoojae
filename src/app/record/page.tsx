@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react"; // [수정] Suspense 추가
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
@@ -21,7 +21,6 @@ interface MemoWithBook {
   };
 }
 
-// [수정] RecordContent로 이름 변경 (export default 제거)
 function RecordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -34,6 +33,7 @@ function RecordContent() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
+  // 토스트 메시지 처리 (삭제 후 돌아왔을 때 등)
   useEffect(() => {
     if (searchParams.get("toast") === "deleted") {
       setToastMessage("노트가 삭제되었습니다");
@@ -43,16 +43,18 @@ function RecordContent() {
       newUrl.searchParams.delete("toast");
       window.history.replaceState({}, "", newUrl.toString());
 
-      setTimeout(() => setShowToast(false), 2000);
+      const timer = setTimeout(() => setShowToast(false), 2000);
+      return () => clearTimeout(timer);
     }
   }, [searchParams]);
 
+  // 메모 데이터 로드
   const fetchMemos = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-         setIsLoading(false);
-         return;
+        setIsLoading(false);
+        return;
       }
 
       const { data, error } = await supabase
@@ -70,7 +72,8 @@ function RecordContent() {
 
       if (error) throw error;
       
-      if (data) setMemos(data as any);
+      // Supabase 타입 추론 문제 해결을 위한 단언
+      if (data) setMemos(data as unknown as MemoWithBook[]);
 
     } catch (error) {
       console.error("메모 로딩 실패:", error);
@@ -99,30 +102,35 @@ function RecordContent() {
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-white max-w-[430px] mx-auto shadow-2xl overflow-hidden">
+    <div className="flex flex-col min-h-screen bg-white pb-24">
       <Toast isVisible={showToast} message={toastMessage} />
       
+      {/* [수정] type="tab" 적용 및 여백 조정 */}
       <CommonHeader 
         title="노트"
-        align="left"
+        type="tab"
         rightIcon={<Plus className="w-6 h-6" />}
         onRightClick={() => setIsModalOpen(true)}
       />
 
-      <main className="flex-1 flex flex-col px-6 pb-24 overflow-y-auto scrollbar-hide">
+      <main className="flex-1 flex flex-col px-6 pt-4 overflow-y-auto scrollbar-hide">
         {isLoading ? (
-          <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">로딩 중...</div>
+          <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+            로딩 중...
+          </div>
         ) : memos.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center space-y-3">
             <p className="text-[16px] font-medium text-gray-900">첫 독서 노트를 남겨볼까요?</p>
-            <p className="text-[13px] text-gray-500 leading-relaxed">한 줄의 메모가 쌓여 당신의 독서 여정이 깊어집니다.</p>
+            <p className="text-[13px] text-gray-500 leading-relaxed">
+              한 줄의 메모가 쌓여<br/>당신의 독서 여정이 깊어집니다.
+            </p>
           </div>
         ) : (
-          <div className="flex flex-col gap-4 pt-2">
+          <div className="flex flex-col gap-4">
             {memos.map((memo) => (
               <div 
                 key={memo.id} 
-                className="w-full border border-gray-100 rounded-[12px] p-5 flex flex-col gap-3 shadow-sm active:scale-[0.99] transition-transform cursor-pointer"
+                className="w-full border border-gray-100 rounded-[12px] p-5 flex flex-col gap-3 shadow-sm active:scale-[0.99] transition-transform cursor-pointer bg-white"
                 onClick={() => router.push(`/notes/${memo.id}`)} 
               >
                 <div className="text-center">
@@ -151,7 +159,6 @@ function RecordContent() {
   );
 }
 
-// [수정] Suspense로 감싸서 export
 export default function RecordPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-white" />}>

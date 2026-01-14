@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react"; // [수정] Suspense 추가
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { LogOut, Plus } from "lucide-react";
+import { Plus } from "lucide-react"; // LogOut 제거됨
 import { AnimatePresence, motion, PanInfo } from "framer-motion";
 
 import BottomNav from "@/components/common/BottomNav";
@@ -22,7 +22,6 @@ const STATUS_LABELS: Record<BookStatus, string> = {
 
 const TAB_ORDER: BookStatus[] = ["reading", "wish", "finished"];
 
-// [수정] 기존 컴포넌트 이름을 HomeContent로 변경 (export default 제거)
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -116,10 +115,7 @@ function HomeContent() {
     }
   }, [searchParams]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.replace("/login");
-  };
+  // [삭제됨] handleLogout 함수 제거
 
   const handleTabChange = (newTab: BookStatus) => {
     if (newTab === activeTab) return;
@@ -220,9 +216,7 @@ function HomeContent() {
       <Toast isVisible={showToast} message={toastMessage} />
       <AlertModal isOpen={showAlert} onClose={() => setShowAlert(false)} message="이미 등록된 책입니다" />
 
-      <button onClick={handleLogout} className="absolute top-4 right-4 z-40 px-3 py-1.5 bg-black/50 text-white text-xs rounded-full backdrop-blur-sm hover:bg-black transition-colors flex items-center gap-1 cursor-pointer">
-        <LogOut className="w-3 h-3" /> 로그아웃
-      </button>
+      {/* [삭제됨] 로그아웃 버튼 제거 */}
 
       <header className="flex flex-col items-center w-full pt-8 pb-4 bg-white z-10 shrink-0 select-none">
         <div className="flex gap-6 mb-2 relative">
@@ -296,9 +290,9 @@ function HomeContent() {
                       )}
                       
                       {activeTab === "finished" && book.rating !== null && book.rating !== undefined && (
-                         <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded backdrop-blur-sm">
-                           ★ {book.rating}
-                         </div>
+                          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded backdrop-blur-sm">
+                            ★ {book.rating}
+                          </div>
                       )}
                     </div>
                     <div className="space-y-1">
@@ -317,7 +311,7 @@ function HomeContent() {
         </AnimatePresence>
       </div>
 
-      <div className="absolute bottom-[88px] left-0 w-full flex justify-center pointer-events-none z-20">
+      <div className="absolute bottom-[100px] left-0 w-full flex justify-center pointer-events-none z-20">
         <button 
           onClick={() => setIsModalOpen(true)}
           className="pointer-events-auto w-14 h-10 bg-black text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform cursor-pointer hover:bg-gray-800"
@@ -338,8 +332,6 @@ function HomeContent() {
   );
 }
 
-// [수정] 여기가 핵심입니다.
-// 실제 페이지 컴포넌트(HomePage)는 HomeContent를 Suspense로 감싸서 내보냅니다.
 export default function HomePage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-white" />}>

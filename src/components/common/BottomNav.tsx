@@ -11,7 +11,7 @@ export default function BottomNav() {
   const isActive = (path: string) => pathname?.startsWith(path);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-white border-t border-gray-100 flex justify-around items-center h-[88px] pb-5 z-50">
+    <nav className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-white border-t border-gray-100 flex justify-around items-center h-[88px] z-50">
       {/* 1. 홈 탭 */}
       <Link href="/home" className="p-4 active:scale-95 transition-transform">
         <Home 
@@ -31,10 +31,10 @@ export default function BottomNav() {
       </Link>
 
       {/* 3. 마이페이지 탭 (아직 없다면 링크만 걸어둠) */}
-      <Link href="/mypage" className="p-4 active:scale-95 transition-transform">
+      <Link href="/my" className="p-4 active:scale-95 transition-transform">
         <User 
           className={`w-6 h-6 transition-colors ${
-            isActive("/mypage") ? "text-black fill-black" : "text-gray-300"
+            isActive("/my") ? "text-black fill-black" : "text-gray-300"
           }`} 
         />
       </Link>
