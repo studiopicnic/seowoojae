@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
-import { motion, AnimatePresence, PanInfo } from "framer-motion";
+import { motion, AnimatePresence, PanInfo, useDragControls } from "framer-motion";
 
 interface BottomSheetProps {
   isOpen: boolean;
@@ -16,9 +16,9 @@ export default function BottomSheet({
   children,
   className = "",
 }: BottomSheetProps) {
-
-  // [중요] 기존의 Body Scroll Lock (useEffect) 코드를 모두 제거했습니다.
-  // layout.tsx의 interactive-widget 설정과 충돌하기 때문입니다.
+  
+  // [핵심 1] 드래그를 수동으로 제어하기 위한 컨트롤러 생성
+  const controls = useDragControls();
 
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.y > 100) {
@@ -31,17 +31,15 @@ export default function BottomSheet({
       {isOpen && (
         <div className="fixed inset-0 z-[60] flex justify-center items-end">
           
-          {/* 1. 배경 (Backdrop) */}
+          {/* 배경 (Backdrop) */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
             
-            // [핵심 1] 배경 터치 원천 봉쇄
-            // CSS: 터치 액션 자체를 끔
+            // 배경 터치 시 화면 밀림 방지 (Scroll Trap)
             style={{ touchAction: "none" }}
-            // JS: 혹시라도 발생하는 터치 이동 이벤트를 무효화
             onTouchMove={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -50,36 +48,46 @@ export default function BottomSheet({
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
 
-          {/* 2. 바텀시트 프레임 */}
+          {/* 바텀시트 본체 */}
           <motion.div
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            
             drag="y"
             dragConstraints={{ top: 0 }}
             dragElastic={0.05}
+            
+            // [핵심 2] 모달 전체의 드래그 리스너 비활성화
+            // 이제 모달 아무데나 잡고 끈다고 움직이지 않습니다.
+            dragListener={false} 
+            dragControls={controls} // 수동 컨트롤 연결
             onDragEnd={handleDragEnd}
             
-            // [핵심 2] 모달 껍데기 고정
-            // 모달 내부의 스크롤 영역(children)을 제외한 
-            // 헤더나 빈 공간을 당겼을 때 화면이 움직이는 것을 방지합니다.
             style={{ 
               maxHeight: "90dvh",
+              // 모달 껍데기는 터치 액션을 막아서(none), 실수로 빈 공간 당겼을 때 Body가 밀리는 것 방지
               touchAction: "none" 
             }}
             
             className={`relative w-full max-w-[430px] bg-white rounded-t-[20px] shadow-2xl overflow-hidden flex flex-col ${className}`}
           >
-            {/* 드래그 핸들 */}
-            <div className="w-full flex justify-center pt-3 pb-1 shrink-0 cursor-grab active:cursor-grabbing">
+            {/* [핵심 3] 드래그 핸들 (손잡이) 
+              오직 이 영역에서만 드래그가 시작됩니다.
+            */}
+            <div 
+              className="w-full flex justify-center pt-3 pb-1 shrink-0 cursor-grab active:cursor-grabbing touch-none"
+              // 마우스/터치를 눌렀을 때 드래그 시작 알림
+              onPointerDown={(e) => controls.start(e)}
+            >
               <div className="w-10 h-1 bg-gray-300 rounded-full" />
             </div>
 
             {/* 컨텐츠 영역 */}
-            {/* 내용물 스크롤은 여기서 처리하지 않고, 
-              SearchModal 등 자식 컴포넌트 내부의 'overflow-y-auto' 영역에서 
-              'overscroll-behavior: contain'과 함께 처리됩니다. (이미 적용되어 있음)
+            {/* [참고] 자식 컴포넌트(SearchModal 등)의 스크롤 영역에는 
+               className="overflow-y-auto ... touch-pan-y" 가 있어야 스크롤이 됩니다.
+               이미 SearchModal 코드에 적용되어 있는 것을 확인했습니다.
             */}
             {children}
           </motion.div>
