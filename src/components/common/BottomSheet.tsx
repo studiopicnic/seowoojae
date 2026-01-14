@@ -17,8 +17,37 @@ export default function BottomSheet({
   className = "",
 }: BottomSheetProps) {
 
-  // [복구] 복잡한 높이 계산 로직(visualViewport) 제거함.
-  // 이제 브라우저의 기본 동작에 맡깁니다.
+  // [핵심 로직] Body Scroll Lock (iOS 완벽 대응)
+  useEffect(() => {
+    if (isOpen) {
+      // 1. 현재 스크롤 위치 저장
+      const scrollY = window.scrollY;
+
+      // 2. Body를 그 자리에 강제로 고정 (얼리기)
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = "100%";
+      document.body.style.overflow = "hidden"; // 추가 안전장치
+    } else {
+      // 닫힐 때는 원래대로 복구하지 않음 (Clean-up 함수에서 처리)
+      // *isOpen이 false로 변할 때도 아래 cleanup 함수가 실행되므로 여기선 비워둡니다.
+    }
+
+    // 3. Clean-up: 모달이 닫히거나 컴포넌트가 사라질 때 원상복구
+    return () => {
+      // 얼려놨던 스크롤 위치 가져오기
+      const scrollY = document.body.style.top;
+      
+      // 스타일 초기화 (녹이기)
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.width = "";
+      document.body.style.overflow = "";
+
+      // 원래 스크롤 위치로 순간이동 (사용자는 모름)
+      window.scrollTo(0, parseInt(scrollY || "0") * -1);
+    };
+  }, [isOpen]);
 
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.y > 100) {
@@ -51,8 +80,11 @@ export default function BottomSheet({
             dragElastic={0.05}
             onDragEnd={handleDragEnd}
             
-            // [복구] max-height를 90dvh(동적 뷰포트 높이)로 설정
-            // 평소에는 화면의 90%까지 찰 수 있음
+            // 높이 설정:
+            // max-height: 90dvh (화면의 90%까지만 사용)
+            // h-auto: 내용물 크기만큼만 (메뉴 모달 등)
+            // *키보드가 올라오면 -> Body가 고정되어 있으므로 화면이 밀리지 않고, 
+            //  브라우저가 뷰포트를 줄이면서(layout.tsx 설정 덕분) 모달 하단이 키보드 위에 안착합니다.
             style={{ maxHeight: "90dvh" }}
             
             className={`relative w-full max-w-[430px] bg-white rounded-t-[20px] shadow-2xl overflow-hidden flex flex-col ${className}`}
