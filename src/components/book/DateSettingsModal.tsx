@@ -76,6 +76,7 @@ export default function DateSettingsModal({
                     <Calendar 
                       onChange={(val) => {
                         setStartDate(val as Date);
+                        // 시작 날짜 선택 후, 완료 상태라면 종료 날짜 탭으로 자동 이동
                         if (isFinished) setActiveTab("end");
                         else setActiveTab(null);
                       }}
@@ -109,7 +110,17 @@ export default function DateSettingsModal({
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                     <div className="pt-6 pb-2">
                       <Calendar 
-                        onChange={(val) => { setEndDate(val as Date); setActiveTab(null); }}
+                        onChange={(val) => { 
+                          const newEndDate = val as Date;
+                          setEndDate(newEndDate);
+                          
+                          // [수정] 종료 날짜가 시작 날짜보다 이전이면, 시작 날짜를 종료 날짜와 같게 보정
+                          if (newEndDate < startDate) {
+                            setStartDate(newEndDate);
+                          }
+                          
+                          setActiveTab(null); 
+                        }}
                         value={endDate}
                         formatDay={(locale, date) => format(date, "d")}
                         next2Label={null} prev2Label={null} calendarType="gregory"
@@ -122,7 +133,7 @@ export default function DateSettingsModal({
           )}
         </div>
 
-        {/* 하단 버튼 (FullScreenModal 내부 컨텐츠로 포함) */}
+        {/* 하단 버튼 */}
         <div className="mt-auto pb-4">
           <button onClick={handleConfirm} className="w-full h-[52px] bg-black text-white text-[16px] font-bold rounded-xl active:scale-[0.98] transition-transform">
             확인

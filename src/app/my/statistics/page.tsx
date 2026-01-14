@@ -14,6 +14,7 @@ interface Book {
   authors: string[];
   thumbnail?: string;
   created_at: string;
+  end_date?: string;
   status: string;
   rating?: number;
 }
@@ -33,6 +34,7 @@ export default function StatisticsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // [수정] ended_at 컬럼 추가 조회
       const { data, error } = await supabase
         .from("books")
         .select("*")
@@ -49,9 +51,13 @@ export default function StatisticsPage() {
     fetchBooks();
   }, [supabase]);
 
+  // [수정] 필터링 로직 변경 (created_at -> ended_at 우선)
   const filteredBooks = useMemo(() => {
     return books.filter((book) => {
-      const date = new Date(book.created_at);
+      // 마이페이지 그래프와 동일한 기준 적용
+      const targetDateStr = book.end_date || book.created_at;
+      const date = new Date(targetDateStr);
+      
       return (
         date.getFullYear() === selectedYear &&
         date.getMonth() + 1 === selectedMonth
@@ -66,10 +72,9 @@ export default function StatisticsPage() {
 
   return (
     <>
-      {/* [수정] fixed inset-0으로 전체 화면 고정 */}
       <div className="absolute inset-0 flex flex-col bg-white">
         
-        {/* 1. 헤더 (고정) */}
+        {/* 1. 헤더 */}
         <CommonHeader
           title="통계"
           type="default"
@@ -78,7 +83,7 @@ export default function StatisticsPage() {
           className="shrink-0 border-b border-transparent"
         />
 
-        {/* 2. 서브 헤더 (날짜 선택 트리거 - 고정) */}
+        {/* 2. 서브 헤더 (날짜 선택 트리거) */}
         <div className="flex items-center justify-between px-6 py-4 shrink-0 bg-white z-10">
           <button 
             className="flex items-center gap-1 text-[18px] font-bold text-gray-900 active:opacity-60 transition-opacity"
@@ -92,7 +97,7 @@ export default function StatisticsPage() {
           </span>
         </div>
 
-        {/* 3. 리스트 영역 (여기만 스크롤) */}
+        {/* 3. 리스트 영역 */}
         <main className="flex-1 px-6 pb-12 overflow-y-auto scrollbar-hide">
           {isLoading ? (
             <div className="py-20 text-center text-sm text-gray-400">로딩 중...</div>

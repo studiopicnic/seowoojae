@@ -8,12 +8,13 @@ import { createClient } from "@/utils/supabase/client";
 import BottomNav from "@/components/common/BottomNav";
 import CommonHeader from "@/components/common/CommonHeader";
 import YearSelectModal from "@/components/my/YearSelectModal";
-import ConfirmModal from "@/components/common/ConfirmModal"; // [추가]
+import ConfirmModal from "@/components/common/ConfirmModal";
 
 interface Book {
   id: string;
   status: string;
   created_at: string;
+  end_date?: string; // [수정] 독서 완료일 필드 추가
 }
 
 export default function MyPage() {
@@ -26,7 +27,7 @@ export default function MyPage() {
 
   // 모달 상태 관리
   const [isYearModalOpen, setIsYearModalOpen] = useState(false);
-  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false); // [추가] 로그아웃 모달 상태
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   // 1. 페이지 로드 시 저장된 연도 불러오기
   useEffect(() => {
@@ -51,11 +52,12 @@ export default function MyPage() {
         return;
       }
 
+      // [수정] ended_at 컬럼을 추가로 조회합니다.
       const { data, error } = await supabase
         .from("books")
-        .select("id, status, created_at")
+        .select("id, status, created_at, end_date")
         .eq("user_id", user.id)
-        .eq("status", "finished");
+        .eq("status", "finished"); // 읽은 책(finished)만 가져오는 기준 유지
 
       if (!error && data) {
         setBooks(data);
@@ -69,24 +71,30 @@ export default function MyPage() {
   // 통계 데이터 계산
   const stats = useMemo(() => {
     const monthlyCounts = Array(12).fill(0);
+    
     books.forEach((book) => {
-      const date = new Date(book.created_at);
+      // [수정] 통계 기준 변경: ended_at(완료일) 우선 사용
+      // ended_at이 없으면 created_at(생성일)을 fallback으로 사용
+      const targetDateStr = book.end_date || book.created_at;
+      const date = new Date(targetDateStr);
+      
       if (date.getFullYear() === currentYear) {
         const month = date.getMonth();
         monthlyCounts[month] += 1;
       }
     });
+
     const totalCount = monthlyCounts.reduce((a, b) => a + b, 0);
     const maxCount = Math.max(...monthlyCounts);
     return { monthlyCounts, totalCount, maxCount };
   }, [books, currentYear]);
 
-  // [변경] 로그아웃 버튼 클릭 핸들러 (모달 열기)
+  // 로그아웃 버튼 클릭 핸들러
   const handleLogoutClick = () => {
     setIsLogoutModalOpen(true);
   };
 
-  // [신규] 실제 로그아웃 처리 (모달 확인 클릭 시)
+  // 실제 로그아웃 처리
   const handleLogoutConfirm = async () => {
     localStorage.removeItem("my_selected_year");
     await supabase.auth.signOut();
@@ -95,7 +103,7 @@ export default function MyPage() {
 
   return (
     <>
-      {/* [수정] fixed inset-0으로 전체 화면 고정 (헤더 고정 효과) */}
+      {/* fixed inset-0 -> absolute inset-0 (모바일 레이아웃 대응) */}
       <div className="absolute inset-0 flex flex-col bg-white">
         
         {/* 1. 헤더 (고정) */}
@@ -187,7 +195,6 @@ export default function MyPage() {
 
             <hr className="border-gray-50" />
 
-            {/* [변경] 로그아웃 버튼 클릭 시 모달 오픈 */}
             <button 
               onClick={handleLogoutClick}
               className="flex items-center justify-between w-full py-4 bg-white active:bg-gray-50 transition-colors"
@@ -209,16 +216,16 @@ export default function MyPage() {
         onSelectYear={handleYearChange} 
       />
 
-      {/* [추가] 로그아웃 확인 모달 */}
+      {/* 로그아웃 확인 모달 */}
       <ConfirmModal 
         isOpen={isLogoutModalOpen}
         onClose={() => setIsLogoutModalOpen(false)}
         onConfirm={handleLogoutConfirm}
         title="로그아웃하시겠습니까?"
-        message=" " // 공백을 주어 레이아웃 유지
+        message=" "
         confirmText="확인"
         cancelText="취소"
-        isDanger={false} // 파란색(혹은 기본) 버튼 스타일
+        isDanger={false}
       />
     </>
   );

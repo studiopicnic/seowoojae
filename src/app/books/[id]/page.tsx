@@ -111,12 +111,34 @@ export default function BookDetailPage() {
   };
 
   const handleDateUpdate = async (start: Date, end: Date | null) => {
-     if(!book?.id) return;
-     const updates: any = { start_date: start.toISOString() };
-     if (end) updates.end_date = end.toISOString();
-     await supabase.from("books").update(updates).eq("id", book.id);
-     setBook({ ...book, ...updates });
+  if (!book?.id) return;
+
+  const updates: any = { 
+    start_date: start.toISOString() 
   };
+
+  // [수정] 스키마에 맞춰 'end_date' 컬럼 사용
+  if (end) {
+    updates.end_date = end.toISOString();
+  } else {
+    updates.end_date = null; // 종료일이 없으면 null 처리
+  }
+
+  // Supabase 업데이트
+  const { error } = await supabase
+    .from("books")
+    .update(updates)
+    .eq("id", book.id);
+
+  if (error) {
+    console.error("날짜 업데이트 실패:", error);
+    alert("날짜 저장에 실패했습니다.");
+    return;
+  }
+
+  // 로컬 상태 즉시 반영
+  setBook({ ...book, ...updates });
+};
 
   const handleStartReading = async () => {
      if (!book?.id) return;
