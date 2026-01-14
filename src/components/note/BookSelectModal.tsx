@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Search, X, ChevronLeft, Check } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, ChevronLeft, Check } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { Book } from "@/types/book";
 
@@ -13,12 +13,12 @@ interface BookSelectModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaveComplete: () => void;
-  initialBook?: Book | null; // 상세 페이지에서 진입 시 책 정보
+  initialBook?: Book | null;
   
-  // [추가] 수정 모드 관련 Props
-  isEditMode?: boolean;      // 수정 모드 여부
-  noteId?: string;           // 수정할 노트 ID
-  initialContent?: string;   // 기존 내용
+  // 수정 모드 관련 Props
+  isEditMode?: boolean;
+  noteId?: string;
+  initialContent?: string;
 }
 
 export default function BookSelectModal({ 
@@ -26,58 +26,56 @@ export default function BookSelectModal({
   onClose, 
   onSaveComplete,
   initialBook = null,
-  isEditMode = false,    // 기본값 false (작성 모드)
+  isEditMode = false,
   noteId,
   initialContent = ""
 }: BookSelectModalProps) {
   const supabase = createClient();
   
-  // 단계: selection(책선택) -> writing(글쓰기)
   const [step, setStep] = useState<"selection" | "writing">("selection");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Book[]>([]);
+  const [myBooks, setMyBooks] = useState<Book[]>([]);
+  const [activeTab, setActiveTab] = useState<"reading" | "finished">("reading");
+
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   
-  // 글쓰기 내용
   const [content, setContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  // [핵심] 모달이 열릴 때 초기화 로직
+  // [추가] 저장 가능 상태 여부 (내용이 있고, 저장 중이 아닐 때)
+  const canSave = content.trim().length > 0 && !isSaving;
+
   useEffect(() => {
     if (isOpen) {
       if (isEditMode) {
-        // 1. 수정 모드일 때: 바로 글쓰기 단계로 이동 + 내용 채우기
         setStep("writing");
         setContent(initialContent);
-        // 수정 모드에서는 책 정보가 partial(제목만) 일 수 있으므로 그대로 세팅
         if (initialBook) setSelectedBook(initialBook);
       } else {
-        // 2. 작성 모드일 때
         setContent("");
         if (initialBook) {
-          // 책 상세에서 들어왔으면 책은 선택된 상태로
           setSelectedBook(initialBook);
           setStep("writing");
         } else {
-          // 기록 탭에서 들어왔으면 책 선택부터
           setStep("selection");
           setSelectedBook(null);
-          setSearchQuery("");
-          setSearchResults([]);
+          fetchMyBooks();
         }
       }
     }
   }, [isOpen, initialBook, isEditMode, initialContent]);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    try {
-      const res = await fetch(`/api/books?query=${encodeURIComponent(searchQuery)}`);
-      const data = await res.json();
-      setSearchResults(data.documents || []);
-    } catch (err) {
-      console.error(err);
+  const fetchMyBooks = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("books")
+      .select("*")
+      .in("status", ["reading", "finished"])
+      .order("created_at", { ascending: false });
+
+    if (!error && data) {
+      setMyBooks(data);
     }
   };
 
@@ -86,63 +84,37 @@ export default function BookSelectModal({
     setStep("writing");
   };
 
-// [핵심] 저장 및 수정 로직 분기
-const handleSave = async () => {
-    if (!content.trim()) return;
+  const handleSave = async () => {
+    // [보안] 한 번 더 체크 (내용 없으면 함수 종료)
+    if (!canSave) return;
+    
     setIsSaving(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      const now = new Date().toISOString(); // [추가] 현재 시간
+      const now = new Date().toISOString();
 
       if (isEditMode && noteId) {
-        // --- [A] 수정 로직 (UPDATE) ---
-        // [복구] updated_at을 현재 시간으로 갱신 -> 리스트 최상단으로 이동됨
         const { error } = await supabase
           .from("memos")
           .update({ 
             content: content,
-            updated_at: now // 수정된 시간 기록
+            updated_at: now
           }) 
           .eq("id", noteId);
         
         if (error) throw error;
-
       } else {
-        // --- [B] 신규 저장 로직 (INSERT) ---
         if (!selectedBook) return;
         
-        let targetBookId = selectedBook.id;
-
-        // (책 등록 로직... 생략... 기존과 동일)
-        if (!targetBookId) {
-           const { data: insertedBook, error: bookError } = await supabase
-             .from("books")
-             .upsert({
-               title: selectedBook.title,
-               authors: selectedBook.authors,
-               thumbnail: selectedBook.thumbnail,
-               isbn: selectedBook.isbn,
-               user_id: user.id,
-               status: 'reading'
-             }, { onConflict: 'isbn, user_id' })
-             .select()
-             .single();
-            
-            if (bookError || !insertedBook) throw bookError;
-            targetBookId = insertedBook.id;
-        }
-
-        // [수정] 신규 생성 시에도 updated_at을 기록
         const { error } = await supabase
           .from("memos")
           .insert({
             user_id: user.id,
-            book_id: targetBookId,
+            book_id: selectedBook.id,
             content: content,
-            updated_at: now // 생성 시간 = 수정 시간 초기화
+            updated_at: now
           });
 
         if (error) throw error;
@@ -160,67 +132,102 @@ const handleSave = async () => {
     }
   };
 
+  const filteredBooks = myBooks.filter(book => 
+    activeTab === "reading" ? book.status === "reading" : book.status === "finished"
+  );
+
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} className="h-[90dvh]">
-      {/* 헤더 처리 
-         - 수정 모드: "노트 수정" (와이어프레임 7-9)
-         - 작성 모드(책선택): "책 선택"
-         - 작성 모드(글쓰기): "기록하기"
-      */}
       <CommonHeader
-        title={isEditMode ? "노트 수정" : (step === "selection" ? "책 선택" : "기록하기")}
+        title={isEditMode ? "노트 수정" : (step === "selection" ? "책 선택하기" : "기록하기")}
         leftIcon={step === "writing" && !isEditMode && !initialBook ? <ChevronLeft className="w-6 h-6" /> : null}
         onLeftClick={() => setStep("selection")}
+        
+        // [수정] 아이콘 로직 변경
+        // 1. step이 writing이 아니면 X (닫기)
+        // 2. step이 writing이면 Check (저장)
+        //    - canSave(내용있음) ? 검은색 : 회색
         rightIcon={
             step === "writing" 
-            ? <Check className={`w-6 h-6 ${isSaving ? 'text-gray-300' : 'text-black'}`} /> 
+            ? <Check className={`w-6 h-6 transition-colors ${canSave ? 'text-black' : 'text-gray-300'}`} /> 
             : <X className="w-6 h-6" />
         }
-        onRightClick={step === "writing" ? handleSave : onClose}
+        
+        // [수정] 클릭 이벤트 로직 변경
+        // 내용이 없으면(canSave가 false면) 클릭해도 handleSave가 실행되지 않음 (undefined 전달)
+        onRightClick={
+          step === "writing" 
+            ? (canSave ? handleSave : undefined) 
+            : onClose
+        }
       />
 
       <div className="flex-1 overflow-y-auto px-6 pb-8">
-        {/* 1. 책 선택 화면 (수정 모드에선 안 보임) */}
         {!isEditMode && step === "selection" && (
-          <div className="flex flex-col gap-4 mt-2">
-            <form onSubmit={handleSearch} className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input 
-                type="search"
-                placeholder="책 제목을 검색하세요"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full py-4 pl-12 pr-4 bg-gray-50 rounded-xl outline-none"
-                autoFocus
-              />
-            </form>
+          <div className="flex flex-col h-full">
+            <div className="flex border-b border-gray-100 mb-4">
+              <button
+                onClick={() => setActiveTab("reading")}
+                className={`flex-1 py-3 text-[14px] font-medium transition-colors relative ${
+                  activeTab === "reading" ? "text-gray-900 font-bold" : "text-gray-400"
+                }`}
+              >
+                읽고 있는 책
+                {activeTab === "reading" && (
+                  <div className="absolute bottom-0 left-0 w-full h-[2px] bg-black" />
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab("finished")}
+                className={`flex-1 py-3 text-[14px] font-medium transition-colors relative ${
+                  activeTab === "finished" ? "text-gray-900 font-bold" : "text-gray-400"
+                }`}
+              >
+                읽은 책
+                {activeTab === "finished" && (
+                  <div className="absolute bottom-0 left-0 w-full h-[2px] bg-black" />
+                )}
+              </button>
+            </div>
+
             <div className="flex flex-col gap-2">
-              {searchResults.map((book, idx) => (
-                <div key={idx} onClick={() => handleBookSelect(book)} className="flex gap-4 p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
-                   <div className="w-[50px] h-[72px] bg-gray-200 rounded shrink-0 overflow-hidden">
-                      {book.thumbnail && <img src={book.thumbnail} className="w-full h-full object-cover" />}
-                   </div>
-                   <div>
-                     <h4 className="font-bold text-sm">{book.title}</h4>
-                     <p className="text-xs text-gray-500 mt-1">{book.authors.join(", ")}</p>
-                   </div>
+              {filteredBooks.length === 0 ? (
+                <div className="py-20 text-center text-gray-400 text-sm">
+                  {activeTab === "reading" ? "읽고 있는 책이 없습니다." : "다 읽은 책이 없습니다."}
                 </div>
-              ))}
+              ) : (
+                filteredBooks.map((book) => (
+                  <div 
+                    key={book.id} 
+                    onClick={() => handleBookSelect(book)} 
+                    className="flex gap-4 p-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+                  >
+                     <div className="w-[50px] h-[72px] bg-gray-200 rounded shrink-0 overflow-hidden border border-gray-100">
+                        {book.thumbnail ? (
+                          <img src={book.thumbnail} className="w-full h-full object-cover" alt={book.title} />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">No Img</div>
+                        )}
+                     </div>
+                     <div className="flex flex-col justify-center">
+                       <h4 className="font-bold text-[15px] text-gray-900 leading-snug line-clamp-1">{book.title}</h4>
+                       <p className="text-[13px] text-gray-500 mt-1 line-clamp-1">{book.authors.join(", ")}</p>
+                     </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
 
-        {/* 2. 글쓰기 화면 (작성/수정 공통) */}
         {step === "writing" && (
           <div className="flex flex-col h-full pt-2">
-            {/* 책 제목 표시 (와이어프레임 7-9: 상단 작게 표시) */}
             <div className="text-center mb-6">
                <span className="text-[14px] text-gray-400">
                  {selectedBook?.title}
                </span>
             </div>
 
-            {/* 텍스트 에디터 */}
             <textarea
               className="flex-1 w-full text-[16px] leading-relaxed text-gray-900 resize-none outline-none placeholder:text-gray-300"
               placeholder="자유롭게 남겨보세요"
