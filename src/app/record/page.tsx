@@ -71,6 +71,7 @@ function RecordContent() {
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
+      
       if (data) setMemos(data as unknown as MemoWithBook[]);
 
     } catch (error) {
@@ -100,11 +101,10 @@ function RecordContent() {
   };
 
   return (
-    // [수정] 윈도우 스크롤을 사용하기 위해 기본 구조 변경
     <div className="flex flex-col min-h-screen bg-white pb-24">
       <Toast isVisible={showToast} message={toastMessage} />
       
-      {/* [수정] 헤더에 sticky 적용 */}
+      {/* [수정] 헤더에 sticky 적용하여 윈도우 스크롤 시 상단 고정 */}
       <div className="sticky top-0 z-50 bg-white">
         <CommonHeader 
           title="노트"
@@ -114,7 +114,7 @@ function RecordContent() {
         />
       </div>
 
-      {/* [수정] overflow-y-auto 제거 -> 브라우저 전체 스크롤 사용 */}
+      {/* [수정] overflow-y-auto 제거: 내부 스크롤 박스를 없애고 브라우저 전체 스크롤 사용 */}
       <main className="flex-1 flex flex-col px-6 pt-4">
         {isLoading ? (
           <div className="py-20 flex items-center justify-center text-gray-400 text-sm">
