@@ -9,7 +9,6 @@ import CommonHeader from "@/components/common/CommonHeader";
 import OverlayModal from "@/components/common/OverlayModal";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import Toast from "@/components/common/Toast";
-// [추가] 모달 import
 import BookSelectModal from "@/components/note/BookSelectModal";
 
 interface NoteDetail {
@@ -34,12 +33,10 @@ export default function NoteDetailPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState(""); // 토스트 메시지 동적 관리
+  const [toastMessage, setToastMessage] = useState("");
 
-  // [추가] 수정 모달 상태
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  // 데이터 로딩
   const fetchNote = useCallback(async () => {
     if (!params?.id) return;
 
@@ -73,16 +70,14 @@ export default function NoteDetailPage() {
     router.replace("/record?toast=deleted");
   };
 
-  // [수정] 수정 버튼 클릭 시 모달 열기
   const handleEdit = () => {
-    setIsMenuOpen(false); // 메뉴 닫고
-    setIsEditModalOpen(true); // 수정 모달 열기
+    setIsMenuOpen(false);
+    setIsEditModalOpen(true);
   };
 
-  // [추가] 수정 완료 핸들러
   const handleEditComplete = () => {
-    fetchNote(); // 데이터 새로고침
-    setToastMessage("노트가 수정되었습니다"); // 와이어프레임 7-10 텍스트
+    fetchNote();
+    setToastMessage("노트가 수정되었습니다");
     setShowToast(true);
     setTimeout(() => setShowToast(false), 2000);
   };
@@ -91,6 +86,7 @@ export default function NoteDetailPage() {
   if (!note) return null;
 
   return (
+    // [유지] App Shell 구조: fixed inset-0
     <div className="fixed inset-0 flex flex-col bg-white max-w-[430px] mx-auto shadow-2xl overflow-hidden">
       <Toast isVisible={showToast} message={toastMessage} />
 
@@ -121,41 +117,42 @@ export default function NoteDetailPage() {
         isDanger={true}
       />
 
-      {/* [추가] 3. 수정 모달 (BookSelectModal 재사용) */}
-      {/* note.books가 title만 가지고 있지만, 모달 내부에서 title 표시에만 쓰이므로 타입 단언(as any) 또는 호환됨 */}
+      {/* 3. 수정 모달 */}
       <BookSelectModal 
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         onSaveComplete={handleEditComplete}
-        
-        // 수정 모드 활성화
         isEditMode={true}
         noteId={note.id}
         initialContent={note.content}
         initialBook={note.books as any} 
       />
 
-      {/* 4. 헤더 */}
-      <CommonHeader 
-        leftIcon={<ChevronLeft className="w-6 h-6" />}
-        onLeftClick={() => router.back()}
-        rightIcon={<MoreHorizontal className="w-6 h-6" />}
-        onRightClick={() => setIsMenuOpen(true)}
-      />
+      {/* 4. 헤더 영역: shrink-0 및 z-index 격리 */}
+      <div className="shrink-0 z-10 bg-white">
+        <CommonHeader 
+          leftIcon={<ChevronLeft className="w-6 h-6" />}
+          onLeftClick={() => router.back()}
+          rightIcon={<MoreHorizontal className="w-6 h-6" />}
+          onRightClick={() => setIsMenuOpen(true)}
+        />
+      </div>
 
-      {/* 5. 메인 컨텐츠 */}
-      <main className="flex-1 flex flex-col px-6 pb-12 overflow-y-auto scrollbar-hide">
-        <div className="mt-4 mb-8 text-center">
-          <span className="text-[14px] text-gray-400 font-medium">
-            {note.books?.title}
-          </span>
-        </div>
-        <div className="flex-1 flex items-center pb-20">
-          <p className="text-[16px] text-gray-900 leading-loose whitespace-pre-wrap text-left w-full">
-            {note.content}
-          </p>
-        </div>
-      </main>
+      {/* 5. 메인 컨텐츠 영역: absolute inset-0 구조로 스크롤 경험 통일 */}
+      <div className="flex-1 w-full relative overflow-hidden bg-white">
+        <main className="absolute inset-0 w-full h-full px-6 pb-12 overflow-y-auto overscroll-y-auto scrollbar-hide">
+          <div className="mt-4 mb-8 text-center">
+            <span className="text-[14px] text-gray-400 font-medium">
+              {note.books?.title}
+            </span>
+          </div>
+          <div className="flex flex-col items-center pb-20">
+            <p className="text-[16px] text-gray-900 leading-loose whitespace-pre-wrap text-left w-full">
+              {note.content}
+            </p>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

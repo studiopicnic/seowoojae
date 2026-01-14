@@ -14,7 +14,7 @@ interface Book {
   id: string;
   status: string;
   created_at: string;
-  end_date?: string; // [수정] 독서 완료일 필드 추가
+  end_date?: string;
 }
 
 export default function MyPage() {
@@ -52,12 +52,11 @@ export default function MyPage() {
         return;
       }
 
-      // [수정] ended_at 컬럼을 추가로 조회합니다.
       const { data, error } = await supabase
         .from("books")
         .select("id, status, created_at, end_date")
         .eq("user_id", user.id)
-        .eq("status", "finished"); // 읽은 책(finished)만 가져오는 기준 유지
+        .eq("status", "finished");
 
       if (!error && data) {
         setBooks(data);
@@ -73,8 +72,6 @@ export default function MyPage() {
     const monthlyCounts = Array(12).fill(0);
     
     books.forEach((book) => {
-      // [수정] 통계 기준 변경: ended_at(완료일) 우선 사용
-      // ended_at이 없으면 created_at(생성일)을 fallback으로 사용
       const targetDateStr = book.end_date || book.created_at;
       const date = new Date(targetDateStr);
       
@@ -102,19 +99,20 @@ export default function MyPage() {
   };
 
   return (
-    <>
-      {/* fixed inset-0 -> absolute inset-0 (모바일 레이아웃 대응) */}
-      <div className="absolute inset-0 flex flex-col bg-white">
-        
-        {/* 1. 헤더 (고정) */}
+    // [수정] 최상위 컨테이너: fixed inset-0으로 화면 잠금 (홈 화면과 동일)
+    <div className="fixed inset-0 flex flex-col bg-white overflow-hidden max-w-[430px] mx-auto shadow-2xl">
+      
+      {/* [수정] 헤더 영역: 상단 고정 */}
+      <div className="shrink-0 z-10 bg-white">
         <CommonHeader 
           title="마이" 
           type="tab"
-          className="shrink-0"
         />
+      </div>
 
-        {/* 2. 메인 컨텐츠 (스크롤 영역) */}
-        <main className="flex-1 px-6 space-y-8 pt-4 overflow-y-auto scrollbar-hide pb-24">
+      {/* [수정] 내용 영역: 내부 스크롤 박스 생성 (absolute inset-0) */}
+      <div className="flex-1 w-full relative overflow-hidden bg-white">
+        <main className="absolute inset-0 w-full h-full px-6 pt-4 pb-24 overflow-y-auto overscroll-y-auto scrollbar-hide">
           {/* 통계 섹션 */}
           <section>
             <div 
@@ -174,7 +172,7 @@ export default function MyPage() {
             </div>
           </section>
 
-          <hr className="border-gray-100" />
+          <hr className="border-gray-100 my-8" />
 
           {/* 메뉴 리스트 */}
           <section className="space-y-1">
@@ -227,6 +225,6 @@ export default function MyPage() {
         cancelText="취소"
         isDanger={false}
       />
-    </>
+    </div>
   );
 }

@@ -90,84 +90,89 @@ export default function MyLibraryPage() {
 
   return (
     <>
-      {/* [수정] fixed inset-0으로 전체 화면 고정 */}
-      <div className="absolute inset-0 flex flex-col bg-white">
+      {/* [수정] App Shell 구조: fixed inset-0으로 화면 잠금 */}
+      <div className="fixed inset-0 flex flex-col bg-white overflow-hidden max-w-[430px] mx-auto shadow-2xl">
         <Toast isVisible={showToast} message="책이 삭제되었습니다" />
 
-        {/* 1. 헤더 (고정) */}
-        <CommonHeader
-          title="내 서재"
-          type="default"
-          leftIcon={<ChevronLeft className="w-6 h-6" />}
-          onLeftClick={() => router.back()}
-          rightIcon={
-            <span className={`text-[14px] font-medium transition-colors ${
-              isEditMode ? "text-blue-600 font-bold" : "text-gray-900"
-            }`}>
-              {isEditMode ? "완료" : "삭제"}
-            </span>
-          }
-          onRightClick={toggleEditMode}
-          className="shrink-0 border-b border-transparent"
-        />
+        {/* [수정] 헤더 & 탭 영역: 상단 고정 (z-10, shrink-0) */}
+        <div className="shrink-0 z-10 bg-white">
+          {/* 1. 헤더 */}
+          <CommonHeader
+            title="내 서재"
+            type="default"
+            leftIcon={<ChevronLeft className="w-6 h-6" />}
+            onLeftClick={() => router.back()}
+            rightIcon={
+              <span className={`text-[14px] font-medium transition-colors ${
+                isEditMode ? "text-blue-600 font-bold" : "text-gray-900"
+              }`}>
+                {isEditMode ? "완료" : "삭제"}
+              </span>
+            }
+            onRightClick={toggleEditMode}
+            className="border-b border-transparent"
+          />
 
-        {/* 2. 카테고리 탭 (고정) */}
-        <div className="flex px-6 mb-2 shrink-0 bg-white z-10">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`mr-4 pb-2 text-[16px] transition-colors ${
-                activeTab === tab.id 
-                  ? "font-bold text-gray-900" 
-                  : "font-medium text-gray-400 hover:text-gray-600"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          {/* 2. 카테고리 탭 */}
+          <div className="flex px-6 mb-2">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`mr-4 pb-2 text-[16px] transition-colors ${
+                  activeTab === tab.id 
+                    ? "font-bold text-gray-900" 
+                    : "font-medium text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* 3. 리스트 영역 (여기만 스크롤) */}
-        <main className="flex-1 px-6 pb-10 overflow-y-auto scrollbar-hide">
-          {isLoading ? (
-            <div className="py-20 text-center text-sm text-gray-400">로딩 중...</div>
-          ) : currentBooks.length === 0 ? (
-            <div className="py-20 text-center text-sm text-gray-400">책이 없습니다.</div>
-          ) : (
-            <div className="flex flex-col gap-6 pt-2">
-              {currentBooks.map((book) => (
-                <div 
-                  key={book.id} 
-                  className="flex items-center justify-between group cursor-pointer active:opacity-95"
-                  onClick={() => !isEditMode && router.push(`/books/${book.id}`)}
-                >
-                  <div className="flex gap-4 flex-1 min-w-0">
-                    <div className="w-[60px] h-[86px] bg-gray-100 rounded overflow-hidden shrink-0 border border-gray-100 relative">
-                      {book.thumbnail ? (
-                        <img src={book.thumbnail} alt={book.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs text-gray-300">No Img</div>
-                      )}
+        {/* [수정] 리스트 영역: absolute inset-0으로 내부 스크롤 박스 생성 */}
+        <div className="flex-1 w-full relative overflow-hidden bg-white">
+          <main className="absolute inset-0 w-full h-full px-6 pb-10 overflow-y-auto overscroll-y-auto scrollbar-hide pt-2">
+            {isLoading ? (
+              <div className="py-20 text-center text-sm text-gray-400">로딩 중...</div>
+            ) : currentBooks.length === 0 ? (
+              <div className="py-20 text-center text-sm text-gray-400">책이 없습니다.</div>
+            ) : (
+              <div className="flex flex-col gap-6">
+                {currentBooks.map((book) => (
+                  <div 
+                    key={book.id} 
+                    className="flex items-center justify-between group cursor-pointer active:opacity-95"
+                    onClick={() => !isEditMode && router.push(`/books/${book.id}`)}
+                  >
+                    <div className="flex gap-4 flex-1 min-w-0">
+                      <div className="w-[60px] h-[86px] bg-gray-100 rounded overflow-hidden shrink-0 border border-gray-100 relative">
+                        {book.thumbnail ? (
+                          <img src={book.thumbnail} alt={book.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs text-gray-300">No Img</div>
+                        )}
+                      </div>
+                      <div className="flex flex-col py-1 min-w-0 justify-start">
+                        <h3 className="text-[15px] font-bold text-gray-900 leading-snug line-clamp-2 mb-1">{book.title}</h3>
+                        <p className="text-[13px] text-gray-500 truncate">{book.authors?.join(", ")}</p>
+                      </div>
                     </div>
-                    <div className="flex flex-col py-1 min-w-0 justify-start">
-                      <h3 className="text-[15px] font-bold text-gray-900 leading-snug line-clamp-2 mb-1">{book.title}</h3>
-                      <p className="text-[13px] text-gray-500 truncate">{book.authors?.join(", ")}</p>
-                    </div>
+                    {isEditMode && (
+                      <button
+                        onClick={(e) => handleDeleteRequest(e, book.id)}
+                        className="p-2 ml-2 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    )}
                   </div>
-                  {isEditMode && (
-                    <button
-                      onClick={(e) => handleDeleteRequest(e, book.id)}
-                      className="p-2 ml-2 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </main>
+                ))}
+              </div>
+            )}
+          </main>
+        </div>
       </div>
 
       <ConfirmModal 
