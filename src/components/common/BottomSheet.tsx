@@ -17,34 +17,22 @@ export default function BottomSheet({
   className = "",
 }: BottomSheetProps) {
 
-  // [핵심 로직] Body Scroll Lock (iOS 완벽 대응)
+  // 1. Body Scroll Lock (기본 문서 스크롤 방지)
   useEffect(() => {
     if (isOpen) {
-      // 1. 현재 스크롤 위치 저장
       const scrollY = window.scrollY;
-
-      // 2. Body를 그 자리에 강제로 고정 (얼리기)
       document.body.style.position = "fixed";
       document.body.style.top = `-${scrollY}px`;
       document.body.style.width = "100%";
-      document.body.style.overflow = "hidden"; // 추가 안전장치
-    } else {
-      // 닫힐 때는 원래대로 복구하지 않음 (Clean-up 함수에서 처리)
-      // *isOpen이 false로 변할 때도 아래 cleanup 함수가 실행되므로 여기선 비워둡니다.
+      document.body.style.overflow = "hidden";
     }
 
-    // 3. Clean-up: 모달이 닫히거나 컴포넌트가 사라질 때 원상복구
     return () => {
-      // 얼려놨던 스크롤 위치 가져오기
       const scrollY = document.body.style.top;
-      
-      // 스타일 초기화 (녹이기)
       document.body.style.position = "";
       document.body.style.top = "";
       document.body.style.width = "";
       document.body.style.overflow = "";
-
-      // 원래 스크롤 위치로 순간이동 (사용자는 모름)
       window.scrollTo(0, parseInt(scrollY || "0") * -1);
     };
   }, [isOpen]);
@@ -66,6 +54,14 @@ export default function BottomSheet({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
+            
+            // [핵심 추가] 배경 터치 시 화면 이동(Pan) 원천 차단
+            // iOS Safari에서 키보드가 올라왔을 때 배경을 끌면 화면이 날아가는 것을 막습니다.
+            onTouchMove={(e) => {
+              e.preventDefault(); // "움직이지 마"
+              e.stopPropagation(); // "부모에게 알리지 마"
+            }}
+            
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
 
@@ -80,11 +76,8 @@ export default function BottomSheet({
             dragElastic={0.05}
             onDragEnd={handleDragEnd}
             
-            // 높이 설정:
-            // max-height: 90dvh (화면의 90%까지만 사용)
-            // h-auto: 내용물 크기만큼만 (메뉴 모달 등)
-            // *키보드가 올라오면 -> Body가 고정되어 있으므로 화면이 밀리지 않고, 
-            //  브라우저가 뷰포트를 줄이면서(layout.tsx 설정 덕분) 모달 하단이 키보드 위에 안착합니다.
+            // 모달 본체는 터치 이벤트를 막지 않았으므로(위의 onTouchMove는 형제 요소인 배경에만 적용됨),
+            // 내부 텍스트 입력이나 스크롤은 정상 작동합니다.
             style={{ maxHeight: "90dvh" }}
             
             className={`relative w-full max-w-[430px] bg-white rounded-t-[20px] shadow-2xl overflow-hidden flex flex-col ${className}`}
