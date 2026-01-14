@@ -91,7 +91,7 @@ export default function MyLibraryPage() {
   return (
     <>
       {/* [수정] fixed inset-0으로 전체 화면 고정 */}
-      <div className="fixed inset-0 flex flex-col bg-white">
+      <div className="absolute inset-0 flex flex-col bg-white">
         <Toast isVisible={showToast} message="책이 삭제되었습니다" />
 
         {/* 1. 헤더 (고정) */}

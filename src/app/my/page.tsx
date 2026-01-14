@@ -96,7 +96,7 @@ export default function MyPage() {
   return (
     <>
       {/* [수정] fixed inset-0으로 전체 화면 고정 (헤더 고정 효과) */}
-      <div className="fixed inset-0 flex flex-col bg-white">
+      <div className="absolute inset-0 flex flex-col bg-white">
         
         {/* 1. 헤더 (고정) */}
         <CommonHeader 
